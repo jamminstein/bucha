@@ -101,6 +101,7 @@ local my_lattice
 local seq_sprocket
 local explorer_sprocket
 local bandmate_sprocket
+local octopus_sprocket
 
 -- grid
 local g = grid.connect()
@@ -279,6 +280,21 @@ function init()
     controlspec.new(0.05, 1.0, 'lin', 0.01, 0.5, ""))
   params:set_action("seq_gate", function(v) seq.gate_length = v end)
 
+  params:add_option("seq_division", "seq division",
+    {"1/1", "1/2", "1/4", "1/8", "1/16", "1/32"}, 4)  -- default 1/8
+  params:set_action("seq_division", function(v)
+    local divs = {1, 1/2, 1/4, 1/8, 1/16, 1/32}
+    if seq_sprocket then seq_sprocket:set_division(divs[v]) end
+  end)
+
+  params:add_option("octopus_speed", "octopus speed",
+    {"slow", "normal", "fast", "hyper"}, 3)  -- default fast
+  params:set_action("octopus_speed", function(v)
+    local divs = {1/4, 1/8, 1/16, 1/32}
+    if octopus_sprocket then octopus_sprocket:set_division(divs[v]) end
+    if bandmate_sprocket then bandmate_sprocket:set_division(divs[v]) end
+  end)
+
   -- AUTONOMOUS
   params:add_group("AUTONOMOUS", 5)
   params:add_option("octopus_soul", "octopus soul",
@@ -339,14 +355,13 @@ function init()
     action = function(t)
       if seq.playing then seq_step() end
     end,
-    division = 1/4,
+    division = 1/8,  -- 8th notes default
     enabled = true
   }
 
   explorer_sprocket = my_lattice:new_sprocket{
     action = function(t)
       explorer.tick()
-      -- sync bandmate with explorer state
       bandmate.sync_explorer(
         explorer.phase,
         explorer.intensity,
@@ -354,7 +369,7 @@ function init()
       )
       grid_dirty = true
     end,
-    division = 1/4,
+    division = 1/8,
     enabled = true
   }
 
@@ -363,16 +378,16 @@ function init()
       bandmate.advance()
       grid_dirty = true
     end,
-    division = 1/4,
+    division = 1/16,  -- 16th notes — fast autonomous melody
     enabled = true
   }
 
-  my_lattice:new_sprocket{
+  octopus_sprocket = my_lattice:new_sprocket{
     action = function(t)
       octopus.tick()
       grid_dirty = true
     end,
-    division = 1/4,
+    division = 1/16,  -- 16th notes — the octopus moves FAST
     enabled = true
   }
 
