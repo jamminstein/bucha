@@ -320,18 +320,18 @@ function explorer.enter_phase(phase_num)
   -- phase entry actions
   if phase_num == explorer.CHAOS then
     -- chaos entry: enable generative sequencer, trigger fill
-    local seq = require "lib/sequencer"
+    local seq = explorer.seq
     seq.generative = true
     seq.markov_style = sty.markov_style
     seq.fill_mode = true
   elseif phase_num == explorer.RESOLVE then
     -- resolve entry: disable generative, clear fill
-    local seq = require "lib/sequencer"
+    local seq = explorer.seq
     seq.generative = false
     seq.fill_mode = false
   elseif phase_num == explorer.DRIFT then
     -- new cycle starts
-    local seq = require "lib/sequencer"
+    local seq = explorer.seq
     seq.generative = false
     seq.fill_mode = false
     seq.lsystem_gen = 0
@@ -619,7 +619,7 @@ end
 -- --------------------------------------------------------------------------
 
 function explorer.mutate_seq_melody(sty, mag)
-  local seq = require "lib/sequencer"
+  local seq = explorer.seq
   local len = seq.track_len[seq.TRACK_MELODY]
 
   -- pick 1-3 steps to modify
@@ -651,7 +651,7 @@ function explorer.mutate_seq_melody(sty, mag)
 end
 
 function explorer.mutate_seq_timbre(sty, mag)
-  local seq = require "lib/sequencer"
+  local seq = explorer.seq
   local len = seq.track_len[seq.TRACK_TIMBRE]
 
   local i = math.random(1, len)
@@ -692,7 +692,7 @@ function explorer.mutate_seq_timbre(sty, mag)
 end
 
 function explorer.mutate_seq_rhythm(sty, mag)
-  local seq = require "lib/sequencer"
+  local seq = explorer.seq
   local len = seq.track_len[seq.TRACK_RHYTHM]
 
   local i = math.random(1, len)

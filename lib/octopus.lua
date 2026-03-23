@@ -390,7 +390,7 @@ function octopus.start(soul_name, root)
   octopus.save_anchors()
 
   -- enable generative sequencer
-  local seq = require "lib/sequencer"
+  local seq = octopus.seq
   seq.markov_style = soul.markov
 end
 
@@ -400,7 +400,7 @@ function octopus.stop()
   if octopus.anchors then
     octopus.restore_anchors(0.4)
   end
-  local seq = require "lib/sequencer"
+  local seq = octopus.seq
   seq.generative = false
   seq.fill_mode = false
 end
@@ -663,7 +663,7 @@ end
 -- 4. RHYTHM: mutates sequencer rhythm track
 function octopus.act_rhythm(soul)
   local t = octopus.tentacles[T_RHYTHM]
-  local seq = require "lib/sequencer"
+  local seq = octopus.seq
   local len = seq.track_len[seq.TRACK_RHYTHM]
 
   local i = math.random(1, len)
@@ -705,7 +705,7 @@ end
 -- 5. MELODY: markov evolution + note injection
 function octopus.act_melody(soul)
   local t = octopus.tentacles[T_MELODY]
-  local seq = require "lib/sequencer"
+  local seq = octopus.seq
   local len = seq.track_len[seq.TRACK_MELODY]
 
   -- mutate 1-2 steps
@@ -831,7 +831,7 @@ function octopus.act_chaos(soul)
   if math.random() > soul.chaos_freq * t.energy then return end
 
   local mag = soul.chaos_magnitude * t.energy
-  local seq = require "lib/sequencer"
+  local seq = octopus.seq
 
   local roll = math.random()
   if roll < 0.2 then
@@ -889,7 +889,7 @@ function octopus.set_soul(name)
   if SOULS[name] then
     octopus.soul = name
     -- update sequencer markov style
-    local seq = require "lib/sequencer"
+    local seq = octopus.seq
     seq.markov_style = SOULS[name].markov
   end
 end

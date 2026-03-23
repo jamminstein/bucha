@@ -29,6 +29,10 @@ local explorer = include "lib/explorer"
 local bandmate = include "lib/bandmate"
 local octopus = include "lib/octopus"
 
+-- wire module cross-references
+explorer.seq = seq
+octopus.seq = seq
+
 -- pages
 local PAGES = {"TOPOLOGY", "RATIOS", "SHAPE", "FILTER", "EFFECTS", "OCTOPUS"}
 local page = 1
