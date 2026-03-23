@@ -421,7 +421,10 @@ function octopus.save_anchors()
   octopus.anchors = {}
   local names = {"config", "master_index", "cutoff", "resonance", "drive",
     "phaser_intensity", "phaser_rate", "exciter_amount", "tilt_eq",
-    "wsa_preset", "wsb_preset"}
+    "wsa_preset", "wsb_preset", "attack", "decay", "sustain_level", "release",
+    "noise", "sub_osc", "trem_rate", "trem_depth", "lfo_filter", "lfo_filter_rate",
+    "delay_mix", "delay_time", "delay_feedback", "reverb_mix", "reverb_size",
+    "chorus_mix"}
   for _, n in ipairs(names) do
     octopus.anchors[n] = params:get(n)
   end
@@ -621,6 +624,47 @@ function octopus.act_spectrum(soul)
       params:set("wsb_preset", math.random(1, 8))
     end
   end
+
+  -- texture: noise, sub, tremolo, LFO filter, envelope
+  if math.random() < 0.3 * t.energy then
+    -- noise: builds with tension
+    nudge("noise", rand_delta(0.02) * t.energy, 0.0, 0.3)
+  end
+  if math.random() < 0.2 * t.energy then
+    -- sub: weight during BUILD/PEAK
+    if octopus.form_phase == "BUILD" or octopus.form_phase == "PEAK" then
+      nudge("sub_osc", math.random() * 0.03, 0.0, 0.4)
+    else
+      nudge("sub_osc", -0.02, 0.0, 0.4)
+    end
+  end
+  if math.random() < 0.15 then
+    -- tremolo
+    nudge("trem_depth", rand_delta(0.04 * t.energy), 0.0, 0.6)
+    if params:get("trem_depth") > 0.05 then
+      nudge("trem_rate", rand_delta(1.0), 0.5, 15)
+    end
+  end
+  if math.random() < 0.2 then
+    -- LFO > filter (auto-wah)
+    nudge("lfo_filter", rand_delta(0.03 * t.energy), 0.0, 0.6)
+    if params:get("lfo_filter") > 0.05 then
+      nudge("lfo_filter_rate", rand_delta(0.5), 0.2, 12)
+    end
+  end
+  if math.random() < 0.15 then
+    -- envelope shape shifting
+    local roll = math.random()
+    if roll < 0.3 then
+      nudge("attack", rand_delta(0.05 * t.energy), 0.001, 1.5)
+    elseif roll < 0.6 then
+      nudge("decay", rand_delta(0.1 * t.energy), 0.01, 3.0)
+    elseif roll < 0.8 then
+      nudge("sustain_level", rand_delta(0.05), 0.1, 1.0)
+    else
+      nudge("release", rand_delta(0.1 * t.energy), 0.01, 4.0)
+    end
+  end
 end
 
 -- 3. FILTER: breathes cutoff/resonance/drive
@@ -764,17 +808,15 @@ function octopus.act_melody(soul)
     (octopus.form_phase == "BUILD" and t.energy > 0.6))
 end
 
--- 6. SPACE: phaser, exciter, tilt
+-- 6. SPACE: phaser, exciter, tilt, delay, reverb, chorus
 function octopus.act_space(soul)
   local t = octopus.tentacles[T_SPACE]
-  local mag = t.energy * 0.06
+  local mag = t.energy * 0.08
 
   -- phaser
   if octopus.form_phase ~= "REST" then
     nudge("phaser_intensity", rand_delta(mag) * soul.phaser_love, 0.0, 0.9)
-    if math.random() < 0.25 then
-      nudge("phaser_rate", rand_delta(0.3), 0.1, 5.0)
-    end
+    if math.random() < 0.25 then nudge("phaser_rate", rand_delta(0.3), 0.1, 5.0) end
   else
     nudge("phaser_intensity", -0.03, 0.0, 1.0)
   end
@@ -782,9 +824,33 @@ function octopus.act_space(soul)
   -- exciter
   nudge("exciter_amount", rand_delta(mag) * soul.exciter_love, 0.0, 0.8)
 
-  -- tilt: drift toward soul center
+  -- tilt
   local tilt_pull = (soul.tilt_center - params:get("tilt_eq")) * 0.08
-  nudge("tilt_eq", tilt_pull + rand_delta(0.05), -0.8, 0.8)
+  nudge("tilt_eq", tilt_pull + rand_delta(0.03), -0.8, 0.8)
+
+  -- delay: opens during BUILD/PEAK
+  if octopus.form_phase == "BUILD" or octopus.form_phase == "PEAK" then
+    nudge("delay_mix", math.random() * 0.04 * t.energy, 0.0, 0.7)
+    if math.random() < 0.2 then nudge("delay_time", rand_delta(0.05), 0.05, 1.0) end
+    if math.random() < 0.15 then nudge("delay_feedback", rand_delta(0.05), 0.1, 0.85) end
+  elseif octopus.form_phase == "REST" then
+    nudge("delay_mix", -0.03, 0.0, 1.0)
+  end
+
+  -- reverb: builds, stays during REST (tails)
+  if octopus.form_phase == "PEAK" then
+    nudge("reverb_mix", math.random() * 0.03, 0.0, 0.8)
+    nudge("reverb_size", rand_delta(0.03), 0.2, 0.95)
+  elseif octopus.form_phase == "REST" then
+    nudge("reverb_size", -0.02, 0.2, 0.95)
+  elseif octopus.form_phase == "DRIFT" then
+    nudge("reverb_mix", -0.02, 0.0, 1.0)
+  end
+
+  -- chorus
+  if math.random() < 0.2 then
+    nudge("chorus_mix", rand_delta(0.04 * t.energy), 0.0, 0.5)
+  end
 end
 
 -- 7. FORM: the conductor

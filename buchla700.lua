@@ -220,10 +220,67 @@ function init()
 
   params:add_control("drive", "drive",
     controlspec.new(0, 1, 'lin', 0.01, 0, ""))
-  params:set_action("drive", function(v)
-    drive = v
-    engine.drive(v)
-  end)
+  params:set_action("drive", function(v) drive = v; engine.drive(v) end)
+
+  params:add_group("ENVELOPE", 4)
+  params:add_control("attack", "attack",
+    controlspec.new(0.001, 2, 'exp', 0, 0.005, "s"))
+  params:set_action("attack", function(v) engine.attack(v) end)
+  params:add_control("decay", "decay",
+    controlspec.new(0.01, 4, 'exp', 0, 0.2, "s"))
+  params:set_action("decay", function(v) engine.decay(v) end)
+  params:add_control("sustain_level", "sustain",
+    controlspec.new(0, 1, 'lin', 0.01, 0.8, ""))
+  params:set_action("sustain_level", function(v) engine.sustain(v) end)
+  params:add_control("release", "release",
+    controlspec.new(0.01, 8, 'exp', 0, 0.3, "s"))
+  params:set_action("release", function(v) engine.release(v) end)
+
+  params:add_group("TEXTURE", 6)
+  params:add_control("noise", "noise",
+    controlspec.new(0, 0.5, 'lin', 0.01, 0, ""))
+  params:set_action("noise", function(v) engine.noise(v) end)
+  params:add_control("sub_osc", "sub oscillator",
+    controlspec.new(0, 0.5, 'lin', 0.01, 0, ""))
+  params:set_action("sub_osc", function(v) engine.sub(v) end)
+  params:add_control("trem_rate", "tremolo rate",
+    controlspec.new(0, 20, 'lin', 0.1, 0, "hz"))
+  params:set_action("trem_rate", function(v) engine.trem_rate(v) end)
+  params:add_control("trem_depth", "tremolo depth",
+    controlspec.new(0, 1, 'lin', 0.01, 0, ""))
+  params:set_action("trem_depth", function(v) engine.trem_depth(v) end)
+  params:add_control("lfo_filter", "LFO > filter",
+    controlspec.new(0, 1, 'lin', 0.01, 0, ""))
+  params:set_action("lfo_filter", function(v) engine.lfo_filter(v) end)
+  params:add_control("lfo_filter_rate", "LFO filter rate",
+    controlspec.new(0.1, 20, 'exp', 0, 2, "hz"))
+  params:set_action("lfo_filter_rate", function(v) engine.lfo_filter_rate(v) end)
+
+  params:add_group("SPACE FX", 8)
+  params:add_control("delay_time", "delay time",
+    controlspec.new(0.05, 1.0, 'lin', 0.01, 0.3, "s"))
+  params:set_action("delay_time", function(v) engine.delay_time(v) end)
+  params:add_control("delay_feedback", "delay feedback",
+    controlspec.new(0, 0.9, 'lin', 0.01, 0.4, ""))
+  params:set_action("delay_feedback", function(v) engine.delay_feedback(v) end)
+  params:add_control("delay_mix", "delay mix",
+    controlspec.new(0, 1, 'lin', 0.01, 0, ""))
+  params:set_action("delay_mix", function(v) engine.delay_mix(v) end)
+  params:add_control("reverb_size", "reverb size",
+    controlspec.new(0, 1, 'lin', 0.01, 0.6, ""))
+  params:set_action("reverb_size", function(v) engine.reverb_size(v) end)
+  params:add_control("reverb_damp", "reverb damp",
+    controlspec.new(0, 1, 'lin', 0.01, 0.5, ""))
+  params:set_action("reverb_damp", function(v) engine.reverb_damp(v) end)
+  params:add_control("reverb_mix", "reverb mix",
+    controlspec.new(0, 1, 'lin', 0.01, 0, ""))
+  params:set_action("reverb_mix", function(v) engine.reverb_mix(v) end)
+  params:add_control("chorus_rate", "chorus rate",
+    controlspec.new(0.1, 5, 'lin', 0.01, 0.5, "hz"))
+  params:set_action("chorus_rate", function(v) engine.chorus_rate(v) end)
+  params:add_control("chorus_mix", "chorus mix",
+    controlspec.new(0, 1, 'lin', 0.01, 0, ""))
+  params:set_action("chorus_mix", function(v) engine.chorus_mix(v) end)
 
   -- EFFECTS
   params:add_group("EFFECTS", 5)

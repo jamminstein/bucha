@@ -83,8 +83,11 @@ Engine_Buchla700 : CroneEngine {
 			ratio2=2.0, ratio3=3.0, ratio4=4.0,
 			idx1=1.0, idx2=0.8, idx3=0.8, idx4=0.6, idx5=0.5, idx6=0.6,
 			cutoff=2000, resonance=0.3, drive=0.0,
+			atk=0.005, dec=0.2, sus=0.8, rel=0.3,
+			noise=0.0, trem_rate=0.0, trem_depth=0.0, amp=1.0,
+			sub=0.0, lfo_filter=0.0, lfo_filter_rate=2.0,
 			wsaBuf, wsbBuf, pan=0;
-			var s0,s1,s2,s3,wsaIn,wsbIn,wsaOut,wsbOut,mixed,filtered,sig,env;
+			var s0,s1,s2,s3,wsaIn,wsbIn,wsaOut,wsbOut,mixed,filtered,sig,env,subOsc,noiseSig,tremLfo,filterLfo;
 			s0 = SinOsc.ar(freq); s1 = SinOsc.ar(freq*ratio2);
 			s2 = SinOsc.ar(freq*ratio3); s3 = SinOsc.ar(freq*ratio4);
 			// config 00: symmetric dual-path
@@ -92,11 +95,23 @@ Engine_Buchla700 : CroneEngine {
 			wsbIn = (SinOsc.ar(freq*ratio3, s1*idx4) + (s3*idx5)) * idx6;
 			wsaOut = (wsaIn * 1.5).tanh;
 			wsbOut = (wsbIn * 1.5).tanh;
-			mixed = ((wsaOut + wsbOut) * 0.6 * (1+(drive*4))).tanh;
-			filtered = MoogFF.ar(mixed, cutoff.clip(20,18000), resonance.clip(0,3.5));
+			// sub oscillator (one octave below)
+			subOsc = SinOsc.ar(freq * 0.5) * sub;
+			// noise layer
+			noiseSig = PinkNoise.ar * noise;
+			// mix: FM + sub + noise
+			mixed = ((wsaOut + wsbOut) * 0.6 + subOsc + noiseSig);
+			mixed = (mixed * (1 + (drive * 4))).tanh;
+			// LFO -> filter modulation
+			filterLfo = SinOsc.kr(lfo_filter_rate) * lfo_filter * cutoff * 0.5;
+			filtered = MoogFF.ar(mixed, (cutoff + filterLfo).clip(20,18000), resonance.clip(0,3.5));
 			filtered = LeakDC.ar(filtered);
-			env = EnvGen.kr(Env.adsr(0.005,0.2,0.8,0.3), gate, doneAction:2);
-			sig = Pan2.ar(filtered * env * vel, pan);
+			// tremolo
+			tremLfo = 1 - (SinOsc.kr(trem_rate).range(0,1) * trem_depth);
+			// envelope
+			env = EnvGen.kr(Env.adsr(atk, dec, sus, rel), gate, doneAction:2);
+			sig = filtered * env * vel * amp * tremLfo;
+			sig = Pan2.ar(sig, pan);
 			Out.ar(out, sig);
 		}).add;
 
@@ -104,8 +119,11 @@ Engine_Buchla700 : CroneEngine {
 			ratio2=2.0, ratio3=3.0, ratio4=4.0,
 			idx1=1.0, idx2=0.8, idx3=0.8, idx4=0.6, idx5=0.5, idx6=0.6,
 			cutoff=2000, resonance=0.3, drive=0.0,
+			atk=0.005, dec=0.2, sus=0.8, rel=0.3,
+			noise=0.0, trem_rate=0.0, trem_depth=0.0, amp=1.0,
+			sub=0.0, lfo_filter=0.0, lfo_filter_rate=2.0,
 			wsaBuf, wsbBuf, pan=0;
-			var s0,s1,s2,s3,wsaIn,wsbIn,wsaOut,wsbOut,mixed,filtered,sig,env;
+			var s0,s1,s2,s3,wsaIn,wsbIn,wsaOut,wsbOut,mixed,filtered,sig,env,subOsc,noiseSig,tremLfo,filterLfo;
 			s0 = SinOsc.ar(freq); s1 = SinOsc.ar(freq*ratio2);
 			s2 = SinOsc.ar(freq*ratio3); s3 = SinOsc.ar(freq*ratio4);
 			// config 01: split modulators
@@ -113,11 +131,23 @@ Engine_Buchla700 : CroneEngine {
 			wsbIn = (SinOsc.ar(freq*ratio3, s3*idx4) + (s3*idx5)) * idx6;
 			wsaOut = (wsaIn * 1.5).tanh;
 			wsbOut = (wsbIn * 1.5).tanh;
-			mixed = ((wsaOut + wsbOut) * 0.6 * (1+(drive*4))).tanh;
-			filtered = MoogFF.ar(mixed, cutoff.clip(20,18000), resonance.clip(0,3.5));
+			// sub oscillator (one octave below)
+			subOsc = SinOsc.ar(freq * 0.5) * sub;
+			// noise layer
+			noiseSig = PinkNoise.ar * noise;
+			// mix: FM + sub + noise
+			mixed = ((wsaOut + wsbOut) * 0.6 + subOsc + noiseSig);
+			mixed = (mixed * (1 + (drive * 4))).tanh;
+			// LFO -> filter modulation
+			filterLfo = SinOsc.kr(lfo_filter_rate) * lfo_filter * cutoff * 0.5;
+			filtered = MoogFF.ar(mixed, (cutoff + filterLfo).clip(20,18000), resonance.clip(0,3.5));
 			filtered = LeakDC.ar(filtered);
-			env = EnvGen.kr(Env.adsr(0.005,0.2,0.8,0.3), gate, doneAction:2);
-			sig = Pan2.ar(filtered * env * vel, pan);
+			// tremolo
+			tremLfo = 1 - (SinOsc.kr(trem_rate).range(0,1) * trem_depth);
+			// envelope
+			env = EnvGen.kr(Env.adsr(atk, dec, sus, rel), gate, doneAction:2);
+			sig = filtered * env * vel * amp * tremLfo;
+			sig = Pan2.ar(sig, pan);
 			Out.ar(out, sig);
 		}).add;
 
@@ -125,8 +155,11 @@ Engine_Buchla700 : CroneEngine {
 			ratio2=2.0, ratio3=3.0, ratio4=4.0,
 			idx1=1.0, idx2=0.8, idx3=0.8, idx4=0.6, idx5=0.5, idx6=0.6,
 			cutoff=2000, resonance=0.3, drive=0.0,
+			atk=0.005, dec=0.2, sus=0.8, rel=0.3,
+			noise=0.0, trem_rate=0.0, trem_depth=0.0, amp=1.0,
+			sub=0.0, lfo_filter=0.0, lfo_filter_rate=2.0,
 			wsaBuf, wsbBuf, pan=0;
-			var s0,s1,s2,s3,wsaIn,wsbIn,wsaOut,wsbOut,mixed,filtered,sig,env;
+			var s0,s1,s2,s3,wsaIn,wsbIn,wsaOut,wsbOut,mixed,filtered,sig,env,subOsc,noiseSig,tremLfo,filterLfo;
 			s0 = SinOsc.ar(freq); s1 = SinOsc.ar(freq*ratio2);
 			s2 = SinOsc.ar(freq*ratio3); s3 = SinOsc.ar(freq*ratio4);
 			// config 02: cascaded FM with feedback
@@ -134,11 +167,23 @@ Engine_Buchla700 : CroneEngine {
 			wsbIn = SinOsc.ar(freq*ratio3, s3*idx4) * idx6;
 			wsaOut = (wsaIn * 1.5).tanh;
 			wsbOut = (wsbIn * 1.5).tanh;
-			mixed = ((wsaOut + wsbOut) * 0.6 * (1+(drive*4))).tanh;
-			filtered = MoogFF.ar(mixed, cutoff.clip(20,18000), resonance.clip(0,3.5));
+			// sub oscillator (one octave below)
+			subOsc = SinOsc.ar(freq * 0.5) * sub;
+			// noise layer
+			noiseSig = PinkNoise.ar * noise;
+			// mix: FM + sub + noise
+			mixed = ((wsaOut + wsbOut) * 0.6 + subOsc + noiseSig);
+			mixed = (mixed * (1 + (drive * 4))).tanh;
+			// LFO -> filter modulation
+			filterLfo = SinOsc.kr(lfo_filter_rate) * lfo_filter * cutoff * 0.5;
+			filtered = MoogFF.ar(mixed, (cutoff + filterLfo).clip(20,18000), resonance.clip(0,3.5));
 			filtered = LeakDC.ar(filtered);
-			env = EnvGen.kr(Env.adsr(0.005,0.2,0.8,0.3), gate, doneAction:2);
-			sig = Pan2.ar(filtered * env * vel, pan);
+			// tremolo
+			tremLfo = 1 - (SinOsc.kr(trem_rate).range(0,1) * trem_depth);
+			// envelope
+			env = EnvGen.kr(Env.adsr(atk, dec, sus, rel), gate, doneAction:2);
+			sig = filtered * env * vel * amp * tremLfo;
+			sig = Pan2.ar(sig, pan);
 			Out.ar(out, sig);
 		}).add;
 
@@ -146,8 +191,11 @@ Engine_Buchla700 : CroneEngine {
 			ratio2=2.0, ratio3=3.0, ratio4=4.0,
 			idx1=1.0, idx2=0.8, idx3=0.8, idx4=0.6, idx5=0.5, idx6=0.6,
 			cutoff=2000, resonance=0.3, drive=0.0,
+			atk=0.005, dec=0.2, sus=0.8, rel=0.3,
+			noise=0.0, trem_rate=0.0, trem_depth=0.0, amp=1.0,
+			sub=0.0, lfo_filter=0.0, lfo_filter_rate=2.0,
 			wsaBuf, wsbBuf, pan=0;
-			var s0,s1,s2,s3,wsaIn,wsbIn,wsaOut,wsbOut,mixed,filtered,sig,env;
+			var s0,s1,s2,s3,wsaIn,wsbIn,wsaOut,wsbOut,mixed,filtered,sig,env,subOsc,noiseSig,tremLfo,filterLfo;
 			s0 = SinOsc.ar(freq); s1 = SinOsc.ar(freq*ratio2);
 			s2 = SinOsc.ar(freq*ratio3); s3 = SinOsc.ar(freq*ratio4);
 			// config 03: shared carrier
@@ -155,11 +203,23 @@ Engine_Buchla700 : CroneEngine {
 			wsbIn = (s3 + (SinOsc.ar(freq*ratio2, s2*idx5)*idx4)) * idx6;
 			wsaOut = (wsaIn * 1.5).tanh;
 			wsbOut = (wsbIn * 1.5).tanh;
-			mixed = ((wsaOut + wsbOut) * 0.6 * (1+(drive*4))).tanh;
-			filtered = MoogFF.ar(mixed, cutoff.clip(20,18000), resonance.clip(0,3.5));
+			// sub oscillator (one octave below)
+			subOsc = SinOsc.ar(freq * 0.5) * sub;
+			// noise layer
+			noiseSig = PinkNoise.ar * noise;
+			// mix: FM + sub + noise
+			mixed = ((wsaOut + wsbOut) * 0.6 + subOsc + noiseSig);
+			mixed = (mixed * (1 + (drive * 4))).tanh;
+			// LFO -> filter modulation
+			filterLfo = SinOsc.kr(lfo_filter_rate) * lfo_filter * cutoff * 0.5;
+			filtered = MoogFF.ar(mixed, (cutoff + filterLfo).clip(20,18000), resonance.clip(0,3.5));
 			filtered = LeakDC.ar(filtered);
-			env = EnvGen.kr(Env.adsr(0.005,0.2,0.8,0.3), gate, doneAction:2);
-			sig = Pan2.ar(filtered * env * vel, pan);
+			// tremolo
+			tremLfo = 1 - (SinOsc.kr(trem_rate).range(0,1) * trem_depth);
+			// envelope
+			env = EnvGen.kr(Env.adsr(atk, dec, sus, rel), gate, doneAction:2);
+			sig = filtered * env * vel * amp * tremLfo;
+			sig = Pan2.ar(sig, pan);
 			Out.ar(out, sig);
 		}).add;
 
@@ -167,8 +227,11 @@ Engine_Buchla700 : CroneEngine {
 			ratio2=2.0, ratio3=3.0, ratio4=4.0,
 			idx1=1.0, idx2=0.8, idx3=0.8, idx4=0.6, idx5=0.5, idx6=0.6,
 			cutoff=2000, resonance=0.3, drive=0.0,
+			atk=0.005, dec=0.2, sus=0.8, rel=0.3,
+			noise=0.0, trem_rate=0.0, trem_depth=0.0, amp=1.0,
+			sub=0.0, lfo_filter=0.0, lfo_filter_rate=2.0,
 			wsaBuf, wsbBuf, pan=0;
-			var s0,s1,s2,s3,wsaIn,wsbIn,wsaOut,wsbOut,mixed,filtered,sig,env;
+			var s0,s1,s2,s3,wsaIn,wsbIn,wsaOut,wsbOut,mixed,filtered,sig,env,subOsc,noiseSig,tremLfo,filterLfo;
 			s0 = SinOsc.ar(freq); s1 = SinOsc.ar(freq*ratio2);
 			s2 = SinOsc.ar(freq*ratio3); s3 = SinOsc.ar(freq*ratio4);
 			// config 04: minimal FM + direct envelope
@@ -176,11 +239,23 @@ Engine_Buchla700 : CroneEngine {
 			wsbIn = DC.ar(idx6);
 			wsaOut = (wsaIn * 1.5).tanh;
 			wsbOut = (wsbIn * 1.5).tanh;
-			mixed = ((wsaOut + wsbOut) * 0.6 * (1+(drive*4))).tanh;
-			filtered = MoogFF.ar(mixed, cutoff.clip(20,18000), resonance.clip(0,3.5));
+			// sub oscillator (one octave below)
+			subOsc = SinOsc.ar(freq * 0.5) * sub;
+			// noise layer
+			noiseSig = PinkNoise.ar * noise;
+			// mix: FM + sub + noise
+			mixed = ((wsaOut + wsbOut) * 0.6 + subOsc + noiseSig);
+			mixed = (mixed * (1 + (drive * 4))).tanh;
+			// LFO -> filter modulation
+			filterLfo = SinOsc.kr(lfo_filter_rate) * lfo_filter * cutoff * 0.5;
+			filtered = MoogFF.ar(mixed, (cutoff + filterLfo).clip(20,18000), resonance.clip(0,3.5));
 			filtered = LeakDC.ar(filtered);
-			env = EnvGen.kr(Env.adsr(0.005,0.2,0.8,0.3), gate, doneAction:2);
-			sig = Pan2.ar(filtered * env * vel, pan);
+			// tremolo
+			tremLfo = 1 - (SinOsc.kr(trem_rate).range(0,1) * trem_depth);
+			// envelope
+			env = EnvGen.kr(Env.adsr(atk, dec, sus, rel), gate, doneAction:2);
+			sig = filtered * env * vel * amp * tremLfo;
+			sig = Pan2.ar(sig, pan);
 			Out.ar(out, sig);
 		}).add;
 
@@ -188,8 +263,11 @@ Engine_Buchla700 : CroneEngine {
 			ratio2=2.0, ratio3=3.0, ratio4=4.0,
 			idx1=1.0, idx2=0.8, idx3=0.8, idx4=0.6, idx5=0.5, idx6=0.6,
 			cutoff=2000, resonance=0.3, drive=0.0,
+			atk=0.005, dec=0.2, sus=0.8, rel=0.3,
+			noise=0.0, trem_rate=0.0, trem_depth=0.0, amp=1.0,
+			sub=0.0, lfo_filter=0.0, lfo_filter_rate=2.0,
 			wsaBuf, wsbBuf, pan=0;
-			var s0,s1,s2,s3,wsaIn,wsbIn,wsaOut,wsbOut,mixed,filtered,sig,env;
+			var s0,s1,s2,s3,wsaIn,wsbIn,wsaOut,wsbOut,mixed,filtered,sig,env,subOsc,noiseSig,tremLfo,filterLfo;
 			s0 = SinOsc.ar(freq); s1 = SinOsc.ar(freq*ratio2);
 			s2 = SinOsc.ar(freq*ratio3); s3 = SinOsc.ar(freq*ratio4);
 			// config 05: cross-coupled
@@ -197,11 +275,23 @@ Engine_Buchla700 : CroneEngine {
 			wsbIn = (s3 + (SinOsc.ar(freq*ratio3, s1*idx5)*idx4)) * idx6;
 			wsaOut = (wsaIn * 1.5).tanh;
 			wsbOut = (wsbIn * 1.5).tanh;
-			mixed = ((wsaOut + wsbOut) * 0.6 * (1+(drive*4))).tanh;
-			filtered = MoogFF.ar(mixed, cutoff.clip(20,18000), resonance.clip(0,3.5));
+			// sub oscillator (one octave below)
+			subOsc = SinOsc.ar(freq * 0.5) * sub;
+			// noise layer
+			noiseSig = PinkNoise.ar * noise;
+			// mix: FM + sub + noise
+			mixed = ((wsaOut + wsbOut) * 0.6 + subOsc + noiseSig);
+			mixed = (mixed * (1 + (drive * 4))).tanh;
+			// LFO -> filter modulation
+			filterLfo = SinOsc.kr(lfo_filter_rate) * lfo_filter * cutoff * 0.5;
+			filtered = MoogFF.ar(mixed, (cutoff + filterLfo).clip(20,18000), resonance.clip(0,3.5));
 			filtered = LeakDC.ar(filtered);
-			env = EnvGen.kr(Env.adsr(0.005,0.2,0.8,0.3), gate, doneAction:2);
-			sig = Pan2.ar(filtered * env * vel, pan);
+			// tremolo
+			tremLfo = 1 - (SinOsc.kr(trem_rate).range(0,1) * trem_depth);
+			// envelope
+			env = EnvGen.kr(Env.adsr(atk, dec, sus, rel), gate, doneAction:2);
+			sig = filtered * env * vel * amp * tremLfo;
+			sig = Pan2.ar(sig, pan);
 			Out.ar(out, sig);
 		}).add;
 
@@ -209,8 +299,11 @@ Engine_Buchla700 : CroneEngine {
 			ratio2=2.0, ratio3=3.0, ratio4=4.0,
 			idx1=1.0, idx2=0.8, idx3=0.8, idx4=0.6, idx5=0.5, idx6=0.6,
 			cutoff=2000, resonance=0.3, drive=0.0,
+			atk=0.005, dec=0.2, sus=0.8, rel=0.3,
+			noise=0.0, trem_rate=0.0, trem_depth=0.0, amp=1.0,
+			sub=0.0, lfo_filter=0.0, lfo_filter_rate=2.0,
 			wsaBuf, wsbBuf, pan=0;
-			var s0,s1,s2,s3,wsaIn,wsbIn,wsaOut,wsbOut,mixed,filtered,sig,env;
+			var s0,s1,s2,s3,wsaIn,wsbIn,wsaOut,wsbOut,mixed,filtered,sig,env,subOsc,noiseSig,tremLfo,filterLfo;
 			s0 = SinOsc.ar(freq); s1 = SinOsc.ar(freq*ratio2);
 			s2 = SinOsc.ar(freq*ratio3); s3 = SinOsc.ar(freq*ratio4);
 			// config 06: three-osc cascade
@@ -218,11 +311,23 @@ Engine_Buchla700 : CroneEngine {
 			wsbIn = wsaIn * (idx6/idx3.max(0.001));
 			wsaOut = (wsaIn * 1.5).tanh;
 			wsbOut = (wsbIn * 1.5).tanh;
-			mixed = ((wsaOut + wsbOut) * 0.6 * (1+(drive*4))).tanh;
-			filtered = MoogFF.ar(mixed, cutoff.clip(20,18000), resonance.clip(0,3.5));
+			// sub oscillator (one octave below)
+			subOsc = SinOsc.ar(freq * 0.5) * sub;
+			// noise layer
+			noiseSig = PinkNoise.ar * noise;
+			// mix: FM + sub + noise
+			mixed = ((wsaOut + wsbOut) * 0.6 + subOsc + noiseSig);
+			mixed = (mixed * (1 + (drive * 4))).tanh;
+			// LFO -> filter modulation
+			filterLfo = SinOsc.kr(lfo_filter_rate) * lfo_filter * cutoff * 0.5;
+			filtered = MoogFF.ar(mixed, (cutoff + filterLfo).clip(20,18000), resonance.clip(0,3.5));
 			filtered = LeakDC.ar(filtered);
-			env = EnvGen.kr(Env.adsr(0.005,0.2,0.8,0.3), gate, doneAction:2);
-			sig = Pan2.ar(filtered * env * vel, pan);
+			// tremolo
+			tremLfo = 1 - (SinOsc.kr(trem_rate).range(0,1) * trem_depth);
+			// envelope
+			env = EnvGen.kr(Env.adsr(atk, dec, sus, rel), gate, doneAction:2);
+			sig = filtered * env * vel * amp * tremLfo;
+			sig = Pan2.ar(sig, pan);
 			Out.ar(out, sig);
 		}).add;
 
@@ -230,8 +335,11 @@ Engine_Buchla700 : CroneEngine {
 			ratio2=2.0, ratio3=3.0, ratio4=4.0,
 			idx1=1.0, idx2=0.8, idx3=0.8, idx4=0.6, idx5=0.5, idx6=0.6,
 			cutoff=2000, resonance=0.3, drive=0.0,
+			atk=0.005, dec=0.2, sus=0.8, rel=0.3,
+			noise=0.0, trem_rate=0.0, trem_depth=0.0, amp=1.0,
+			sub=0.0, lfo_filter=0.0, lfo_filter_rate=2.0,
 			wsaBuf, wsbBuf, pan=0;
-			var s0,s1,s2,s3,wsaIn,wsbIn,wsaOut,wsbOut,mixed,filtered,sig,env;
+			var s0,s1,s2,s3,wsaIn,wsbIn,wsaOut,wsbOut,mixed,filtered,sig,env,subOsc,noiseSig,tremLfo,filterLfo;
 			s0 = SinOsc.ar(freq); s1 = SinOsc.ar(freq*ratio2);
 			s2 = SinOsc.ar(freq*ratio3); s3 = SinOsc.ar(freq*ratio4);
 			// config 07: osc4-centric
@@ -239,11 +347,23 @@ Engine_Buchla700 : CroneEngine {
 			wsbIn = (s3 + (s3*idx5)) * idx6;
 			wsaOut = (wsaIn * 1.5).tanh;
 			wsbOut = (wsbIn * 1.5).tanh;
-			mixed = ((wsaOut + wsbOut) * 0.6 * (1+(drive*4))).tanh;
-			filtered = MoogFF.ar(mixed, cutoff.clip(20,18000), resonance.clip(0,3.5));
+			// sub oscillator (one octave below)
+			subOsc = SinOsc.ar(freq * 0.5) * sub;
+			// noise layer
+			noiseSig = PinkNoise.ar * noise;
+			// mix: FM + sub + noise
+			mixed = ((wsaOut + wsbOut) * 0.6 + subOsc + noiseSig);
+			mixed = (mixed * (1 + (drive * 4))).tanh;
+			// LFO -> filter modulation
+			filterLfo = SinOsc.kr(lfo_filter_rate) * lfo_filter * cutoff * 0.5;
+			filtered = MoogFF.ar(mixed, (cutoff + filterLfo).clip(20,18000), resonance.clip(0,3.5));
 			filtered = LeakDC.ar(filtered);
-			env = EnvGen.kr(Env.adsr(0.005,0.2,0.8,0.3), gate, doneAction:2);
-			sig = Pan2.ar(filtered * env * vel, pan);
+			// tremolo
+			tremLfo = 1 - (SinOsc.kr(trem_rate).range(0,1) * trem_depth);
+			// envelope
+			env = EnvGen.kr(Env.adsr(atk, dec, sus, rel), gate, doneAction:2);
+			sig = filtered * env * vel * amp * tremLfo;
+			sig = Pan2.ar(sig, pan);
 			Out.ar(out, sig);
 		}).add;
 
@@ -251,8 +371,11 @@ Engine_Buchla700 : CroneEngine {
 			ratio2=2.0, ratio3=3.0, ratio4=4.0,
 			idx1=1.0, idx2=0.8, idx3=0.8, idx4=0.6, idx5=0.5, idx6=0.6,
 			cutoff=2000, resonance=0.3, drive=0.0,
+			atk=0.005, dec=0.2, sus=0.8, rel=0.3,
+			noise=0.0, trem_rate=0.0, trem_depth=0.0, amp=1.0,
+			sub=0.0, lfo_filter=0.0, lfo_filter_rate=2.0,
 			wsaBuf, wsbBuf, pan=0;
-			var s0,s1,s2,s3,wsaIn,wsbIn,wsaOut,wsbOut,mixed,filtered,sig,env;
+			var s0,s1,s2,s3,wsaIn,wsbIn,wsaOut,wsbOut,mixed,filtered,sig,env,subOsc,noiseSig,tremLfo,filterLfo;
 			s0 = SinOsc.ar(freq); s1 = SinOsc.ar(freq*ratio2);
 			s2 = SinOsc.ar(freq*ratio3); s3 = SinOsc.ar(freq*ratio4);
 			// config 08: dual-path with feedback
@@ -260,11 +383,23 @@ Engine_Buchla700 : CroneEngine {
 			wsbIn = (s3 + (s0*idx5)) * idx6;
 			wsaOut = (wsaIn * 1.5).tanh;
 			wsbOut = (wsbIn * 1.5).tanh;
-			mixed = ((wsaOut + wsbOut) * 0.6 * (1+(drive*4))).tanh;
-			filtered = MoogFF.ar(mixed, cutoff.clip(20,18000), resonance.clip(0,3.5));
+			// sub oscillator (one octave below)
+			subOsc = SinOsc.ar(freq * 0.5) * sub;
+			// noise layer
+			noiseSig = PinkNoise.ar * noise;
+			// mix: FM + sub + noise
+			mixed = ((wsaOut + wsbOut) * 0.6 + subOsc + noiseSig);
+			mixed = (mixed * (1 + (drive * 4))).tanh;
+			// LFO -> filter modulation
+			filterLfo = SinOsc.kr(lfo_filter_rate) * lfo_filter * cutoff * 0.5;
+			filtered = MoogFF.ar(mixed, (cutoff + filterLfo).clip(20,18000), resonance.clip(0,3.5));
 			filtered = LeakDC.ar(filtered);
-			env = EnvGen.kr(Env.adsr(0.005,0.2,0.8,0.3), gate, doneAction:2);
-			sig = Pan2.ar(filtered * env * vel, pan);
+			// tremolo
+			tremLfo = 1 - (SinOsc.kr(trem_rate).range(0,1) * trem_depth);
+			// envelope
+			env = EnvGen.kr(Env.adsr(atk, dec, sus, rel), gate, doneAction:2);
+			sig = filtered * env * vel * amp * tremLfo;
+			sig = Pan2.ar(sig, pan);
 			Out.ar(out, sig);
 		}).add;
 
@@ -272,8 +407,11 @@ Engine_Buchla700 : CroneEngine {
 			ratio2=2.0, ratio3=3.0, ratio4=4.0,
 			idx1=1.0, idx2=0.8, idx3=0.8, idx4=0.6, idx5=0.5, idx6=0.6,
 			cutoff=2000, resonance=0.3, drive=0.0,
+			atk=0.005, dec=0.2, sus=0.8, rel=0.3,
+			noise=0.0, trem_rate=0.0, trem_depth=0.0, amp=1.0,
+			sub=0.0, lfo_filter=0.0, lfo_filter_rate=2.0,
 			wsaBuf, wsbBuf, pan=0;
-			var s0,s1,s2,s3,wsaIn,wsbIn,wsaOut,wsbOut,mixed,filtered,sig,env;
+			var s0,s1,s2,s3,wsaIn,wsbIn,wsaOut,wsbOut,mixed,filtered,sig,env,subOsc,noiseSig,tremLfo,filterLfo;
 			s0 = SinOsc.ar(freq); s1 = SinOsc.ar(freq*ratio2);
 			s2 = SinOsc.ar(freq*ratio3); s3 = SinOsc.ar(freq*ratio4);
 			// config 09: circular feedback (chaos)
@@ -281,11 +419,23 @@ Engine_Buchla700 : CroneEngine {
 			wsbIn = SinOsc.ar(freq*ratio3, s1*idx4) * idx6;
 			wsaOut = (wsaIn * 1.5).tanh;
 			wsbOut = (wsbIn * 1.5).tanh;
-			mixed = ((wsaOut + wsbOut) * 0.6 * (1+(drive*4))).tanh;
-			filtered = MoogFF.ar(mixed, cutoff.clip(20,18000), resonance.clip(0,3.5));
+			// sub oscillator (one octave below)
+			subOsc = SinOsc.ar(freq * 0.5) * sub;
+			// noise layer
+			noiseSig = PinkNoise.ar * noise;
+			// mix: FM + sub + noise
+			mixed = ((wsaOut + wsbOut) * 0.6 + subOsc + noiseSig);
+			mixed = (mixed * (1 + (drive * 4))).tanh;
+			// LFO -> filter modulation
+			filterLfo = SinOsc.kr(lfo_filter_rate) * lfo_filter * cutoff * 0.5;
+			filtered = MoogFF.ar(mixed, (cutoff + filterLfo).clip(20,18000), resonance.clip(0,3.5));
 			filtered = LeakDC.ar(filtered);
-			env = EnvGen.kr(Env.adsr(0.005,0.2,0.8,0.3), gate, doneAction:2);
-			sig = Pan2.ar(filtered * env * vel, pan);
+			// tremolo
+			tremLfo = 1 - (SinOsc.kr(trem_rate).range(0,1) * trem_depth);
+			// envelope
+			env = EnvGen.kr(Env.adsr(atk, dec, sus, rel), gate, doneAction:2);
+			sig = filtered * env * vel * amp * tremLfo;
+			sig = Pan2.ar(sig, pan);
 			Out.ar(out, sig);
 		}).add;
 
@@ -293,8 +443,11 @@ Engine_Buchla700 : CroneEngine {
 			ratio2=2.0, ratio3=3.0, ratio4=4.0,
 			idx1=1.0, idx2=0.8, idx3=0.8, idx4=0.6, idx5=0.5, idx6=0.6,
 			cutoff=2000, resonance=0.3, drive=0.0,
+			atk=0.005, dec=0.2, sus=0.8, rel=0.3,
+			noise=0.0, trem_rate=0.0, trem_depth=0.0, amp=1.0,
+			sub=0.0, lfo_filter=0.0, lfo_filter_rate=2.0,
 			wsaBuf, wsbBuf, pan=0;
-			var s0,s1,s2,s3,wsaIn,wsbIn,wsaOut,wsbOut,mixed,filtered,sig,env;
+			var s0,s1,s2,s3,wsaIn,wsbIn,wsaOut,wsbOut,mixed,filtered,sig,env,subOsc,noiseSig,tremLfo,filterLfo;
 			s0 = SinOsc.ar(freq); s1 = SinOsc.ar(freq*ratio2);
 			s2 = SinOsc.ar(freq*ratio3); s3 = SinOsc.ar(freq*ratio4);
 			// config 10: shared modulator
@@ -302,11 +455,23 @@ Engine_Buchla700 : CroneEngine {
 			wsbIn = (SinOsc.ar(freq*ratio3, s1*idx5) + (s0*idx4)) * idx6;
 			wsaOut = (wsaIn * 1.5).tanh;
 			wsbOut = (wsbIn * 1.5).tanh;
-			mixed = ((wsaOut + wsbOut) * 0.6 * (1+(drive*4))).tanh;
-			filtered = MoogFF.ar(mixed, cutoff.clip(20,18000), resonance.clip(0,3.5));
+			// sub oscillator (one octave below)
+			subOsc = SinOsc.ar(freq * 0.5) * sub;
+			// noise layer
+			noiseSig = PinkNoise.ar * noise;
+			// mix: FM + sub + noise
+			mixed = ((wsaOut + wsbOut) * 0.6 + subOsc + noiseSig);
+			mixed = (mixed * (1 + (drive * 4))).tanh;
+			// LFO -> filter modulation
+			filterLfo = SinOsc.kr(lfo_filter_rate) * lfo_filter * cutoff * 0.5;
+			filtered = MoogFF.ar(mixed, (cutoff + filterLfo).clip(20,18000), resonance.clip(0,3.5));
 			filtered = LeakDC.ar(filtered);
-			env = EnvGen.kr(Env.adsr(0.005,0.2,0.8,0.3), gate, doneAction:2);
-			sig = Pan2.ar(filtered * env * vel, pan);
+			// tremolo
+			tremLfo = 1 - (SinOsc.kr(trem_rate).range(0,1) * trem_depth);
+			// envelope
+			env = EnvGen.kr(Env.adsr(atk, dec, sus, rel), gate, doneAction:2);
+			sig = filtered * env * vel * amp * tremLfo;
+			sig = Pan2.ar(sig, pan);
 			Out.ar(out, sig);
 		}).add;
 
@@ -314,8 +479,11 @@ Engine_Buchla700 : CroneEngine {
 			ratio2=2.0, ratio3=3.0, ratio4=4.0,
 			idx1=1.0, idx2=0.8, idx3=0.8, idx4=0.6, idx5=0.5, idx6=0.6,
 			cutoff=2000, resonance=0.3, drive=0.0,
+			atk=0.005, dec=0.2, sus=0.8, rel=0.3,
+			noise=0.0, trem_rate=0.0, trem_depth=0.0, amp=1.0,
+			sub=0.0, lfo_filter=0.0, lfo_filter_rate=2.0,
 			wsaBuf, wsbBuf, pan=0;
-			var s0,s1,s2,s3,wsaIn,wsbIn,wsaOut,wsbOut,mixed,filtered,sig,env;
+			var s0,s1,s2,s3,wsaIn,wsbIn,wsaOut,wsbOut,mixed,filtered,sig,env,subOsc,noiseSig,tremLfo,filterLfo;
 			s0 = SinOsc.ar(freq); s1 = SinOsc.ar(freq*ratio2);
 			s2 = SinOsc.ar(freq*ratio3); s3 = SinOsc.ar(freq*ratio4);
 			// config 11: multi-output
@@ -323,25 +491,39 @@ Engine_Buchla700 : CroneEngine {
 			wsbIn = (SinOsc.ar(freq, SinOsc.ar(freq*ratio3)*idx5) + (s1*idx2)) * idx6;
 			wsaOut = (wsaIn * 1.5).tanh;
 			wsbOut = (wsbIn * 1.5).tanh;
-			mixed = ((wsaOut + wsbOut) * 0.6 * (1+(drive*4))).tanh;
-			filtered = MoogFF.ar(mixed, cutoff.clip(20,18000), resonance.clip(0,3.5));
+			// sub oscillator (one octave below)
+			subOsc = SinOsc.ar(freq * 0.5) * sub;
+			// noise layer
+			noiseSig = PinkNoise.ar * noise;
+			// mix: FM + sub + noise
+			mixed = ((wsaOut + wsbOut) * 0.6 + subOsc + noiseSig);
+			mixed = (mixed * (1 + (drive * 4))).tanh;
+			// LFO -> filter modulation
+			filterLfo = SinOsc.kr(lfo_filter_rate) * lfo_filter * cutoff * 0.5;
+			filtered = MoogFF.ar(mixed, (cutoff + filterLfo).clip(20,18000), resonance.clip(0,3.5));
 			filtered = LeakDC.ar(filtered);
-			env = EnvGen.kr(Env.adsr(0.005,0.2,0.8,0.3), gate, doneAction:2);
-			sig = Pan2.ar(filtered * env * vel, pan);
+			// tremolo
+			tremLfo = 1 - (SinOsc.kr(trem_rate).range(0,1) * trem_depth);
+			// envelope
+			env = EnvGen.kr(Env.adsr(atk, dec, sus, rel), gate, doneAction:2);
+			sig = filtered * env * vel * amp * tremLfo;
+			sig = Pan2.ar(sig, pan);
 			Out.ar(out, sig);
 		}).add;
 
 		// -- Effects chain --
 		SynthDef(\b700fx, { arg in, out,
 			phaserIntensity=0.0, phaserRate=1.0, phaserDepth=0.5,
-			exciterAmount=0.3,
-			tilt=0.0;
+			exciterAmount=0.3, tilt=0.0,
+			delayTime=0.3, delayFeedback=0.4, delayMix=0.0,
+			reverbSize=0.6, reverbDamp=0.5, reverbMix=0.0,
+			chorusRate=0.5, chorusMix=0.0;
 
 			var sig, left, right;
 			var lhf, rhf, lHarm, rHarm, lExc, rExc;
 			var lfo, lfoSoft, lfoTri, lfoBlend;
 			var allpassFreqs, apL, apR;
-			var tiltLo, tiltHi;
+			var delL, delR, revSig, chorusL, chorusR;
 			var excAmt;
 
 			sig = In.ar(in, 2);
@@ -394,6 +576,25 @@ Engine_Buchla700 : CroneEngine {
 			left = BHiShelf.ar(left, 3000, 1, tilt * 6);
 			right = BLowShelf.ar(right, 300, 1, tilt.neg * 6);
 			right = BHiShelf.ar(right, 3000, 1, tilt * 6);
+
+			// ---- STEREO DELAY ----
+			delL = CombL.ar(left, 1.0, delayTime.clip(0.01, 1.0), delayFeedback * 4);
+			delR = CombL.ar(right, 1.0, (delayTime * 0.75).clip(0.01, 1.0), delayFeedback * 4);
+			left = left + (delL * delayMix);
+			right = right + (delR * delayMix);
+
+			// ---- CHORUS ----
+			chorusL = DelayL.ar(left, 0.05,
+				SinOsc.kr(chorusRate, 0).range(0.005, 0.02));
+			chorusR = DelayL.ar(right, 0.05,
+				SinOsc.kr(chorusRate * 1.1, 0.5pi).range(0.005, 0.02));
+			left = left + (chorusL * chorusMix);
+			right = right + (chorusR * chorusMix);
+
+			// ---- REVERB ----
+			revSig = FreeVerb2.ar(left, right, reverbMix, reverbSize, reverbDamp);
+			left = revSig[0];
+			right = revSig[1];
 
 			// soft clamp
 			left = left.clip(-1, 1);
@@ -452,6 +653,17 @@ Engine_Buchla700 : CroneEngine {
 				\cutoff, params[\cutoff],
 				\resonance, params[\resonance],
 				\drive, params[\drive],
+				\atk, params[\atk] ? 0.005,
+				\dec, params[\dec] ? 0.2,
+				\sus, params[\sus] ? 0.8,
+				\rel, params[\rel] ? 0.3,
+				\noise, params[\noise] ? 0.0,
+				\sub, params[\sub] ? 0.0,
+				\trem_rate, params[\tremRate] ? 0.0,
+				\trem_depth, params[\tremDepth] ? 0.0,
+				\lfo_filter, params[\lfoFilter] ? 0.0,
+				\lfo_filter_rate, params[\lfoFilterRate] ? 2.0,
+				\amp, params[\amp] ? 1.0,
 				\wsaBuf, wsaBufs[params[\wsaPreset].asInteger],
 				\wsbBuf, wsbBufs[params[\wsbPreset].asInteger]
 			], voiceGroup);
@@ -587,6 +799,78 @@ Engine_Buchla700 : CroneEngine {
 			if (voices[note].notNil) {
 				voices[note].set(\pan, panVal);
 			};
+		});
+
+		// ---- voice shaping commands ----
+		this.addCommand("attack", "f", { arg msg;
+			params[\atk] = msg[1].asFloat;
+			voices.do({ arg s; s.set(\atk, params[\atk]) });
+		});
+		this.addCommand("decay", "f", { arg msg;
+			params[\dec] = msg[1].asFloat;
+			voices.do({ arg s; s.set(\dec, params[\dec]) });
+		});
+		this.addCommand("sustain", "f", { arg msg;
+			params[\sus] = msg[1].asFloat;
+			voices.do({ arg s; s.set(\sus, params[\sus]) });
+		});
+		this.addCommand("release", "f", { arg msg;
+			params[\rel] = msg[1].asFloat;
+			voices.do({ arg s; s.set(\rel, params[\rel]) });
+		});
+		this.addCommand("noise", "f", { arg msg;
+			params[\noise] = msg[1].asFloat;
+			voices.do({ arg s; s.set(\noise, params[\noise]) });
+		});
+		this.addCommand("sub", "f", { arg msg;
+			params[\sub] = msg[1].asFloat;
+			voices.do({ arg s; s.set(\sub, params[\sub]) });
+		});
+		this.addCommand("trem_rate", "f", { arg msg;
+			params[\tremRate] = msg[1].asFloat;
+			voices.do({ arg s; s.set(\trem_rate, params[\tremRate]) });
+		});
+		this.addCommand("trem_depth", "f", { arg msg;
+			params[\tremDepth] = msg[1].asFloat;
+			voices.do({ arg s; s.set(\trem_depth, params[\tremDepth]) });
+		});
+		this.addCommand("lfo_filter", "f", { arg msg;
+			params[\lfoFilter] = msg[1].asFloat;
+			voices.do({ arg s; s.set(\lfo_filter, params[\lfoFilter]) });
+		});
+		this.addCommand("lfo_filter_rate", "f", { arg msg;
+			params[\lfoFilterRate] = msg[1].asFloat;
+			voices.do({ arg s; s.set(\lfo_filter_rate, params[\lfoFilterRate]) });
+		});
+		this.addCommand("amp", "f", { arg msg;
+			params[\amp] = msg[1].asFloat;
+			voices.do({ arg s; s.set(\amp, params[\amp]) });
+		});
+
+		// ---- FX commands ----
+		this.addCommand("delay_time", "f", { arg msg;
+			fxSynth.set(\delayTime, msg[1].asFloat);
+		});
+		this.addCommand("delay_feedback", "f", { arg msg;
+			fxSynth.set(\delayFeedback, msg[1].asFloat);
+		});
+		this.addCommand("delay_mix", "f", { arg msg;
+			fxSynth.set(\delayMix, msg[1].asFloat);
+		});
+		this.addCommand("reverb_size", "f", { arg msg;
+			fxSynth.set(\reverbSize, msg[1].asFloat);
+		});
+		this.addCommand("reverb_damp", "f", { arg msg;
+			fxSynth.set(\reverbDamp, msg[1].asFloat);
+		});
+		this.addCommand("reverb_mix", "f", { arg msg;
+			fxSynth.set(\reverbMix, msg[1].asFloat);
+		});
+		this.addCommand("chorus_rate", "f", { arg msg;
+			fxSynth.set(\chorusRate, msg[1].asFloat);
+		});
+		this.addCommand("chorus_mix", "f", { arg msg;
+			fxSynth.set(\chorusMix, msg[1].asFloat);
 		});
 	}
 
