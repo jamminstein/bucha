@@ -1,20 +1,41 @@
 -- buchla700 explorer
--- autonomous timbral topology exploration
 --
--- the buchla 700 is about the journey through FM space:
--- changing the routing topology changes the *character* of the sound.
--- the explorer rides topologies, indices, and waveshapes
--- like a west coast operator rides a complex oscillator.
+-- a west coast operator who lives inside the machine.
+-- not a parameter randomizer — a musician with aesthetic convictions.
 --
--- 4 phases: DRIFT -> MORPH -> CHAOS -> RESOLVE
--- DRIFT:   gentle index riding, stays on current topology
--- MORPH:   topology changes begin, waveshape switching, ratio drift
--- CHAOS:   rapid topology cycling, max indices, feedback configs
--- RESOLVE: pull back toward scene anchors, settle, breathe
+-- 4 phases with distinct personalities:
+--   DRIFT:   morton subotnick at dawn. gentle spectral shimmer.
+--            small index rides, filter breathing, rare topology shifts.
+--            the sequencer thins out, notes sustain, space opens.
+--
+--   MORPH:   the patch cables start moving. topology changes arrive
+--            like weather fronts. ratios drift through the harmonic series.
+--            the sequencer grows p-locks, timbre varies step to step.
+--            waveshapes shift. the filter opens and closes like breath.
+--
+--   CHAOS:   silver apples of the moon. feedback configs dominate.
+--            indices spike, ratios go inharmonic, the exciter cranks.
+--            sequencer goes generative — markov chains replace patterns.
+--            ratchets appear. fills trigger. the phaser swirls.
+--
+--   RESOLVE: the storm passes. parameters pull toward home.
+--            the sequencer returns to its original pattern.
+--            indices recede, filter settles, topology finds anchor.
+--            space clears. breath slows. silence reclaims its territory.
+--
+-- the explorer also has STYLES that flavor everything:
+--   EASEL:   classic buchla — balanced, warm, melodic exploration
+--   STREGA:  dark drones — feedback-heavy, slow, saturated
+--   SUBOTNICK: wide dynamics — dramatic swells, sudden silences
+--   SERGE:   modular chaos — rapid patching, dense textures
+--   ENO:     ambient — glacial movement, overtone focus, space
 
 local explorer = {}
 
+-- --------------------------------------------------------------------------
 -- phases
+-- --------------------------------------------------------------------------
+
 explorer.DRIFT   = 1
 explorer.MORPH   = 2
 explorer.CHAOS   = 3
@@ -22,7 +43,94 @@ explorer.RESOLVE = 4
 
 local PHASE_NAMES = {"DRIFT", "MORPH", "CHAOS", "RESOLVE"}
 
+-- --------------------------------------------------------------------------
+-- styles: aesthetic personalities that color all mutations
+-- --------------------------------------------------------------------------
+
+local STYLES = {
+  EASEL = {
+    name = "EASEL",
+    -- topology preferences per phase
+    drift_configs  = {0, 1, 4, 10},       -- simple, clean
+    morph_configs  = {0, 1, 2, 3, 5, 6},  -- moderate complexity
+    chaos_configs  = {2, 5, 8, 9},         -- feedback but not insane
+    -- parameter tendencies
+    index_ceiling = 1.2,       -- moderate FM depth
+    cutoff_center = 3000,      -- mid-bright
+    drive_love = 0.3,          -- gentle saturation
+    phaser_love = 0.4,         -- moderate phasing
+    exciter_love = 0.3,        -- subtle presence
+    ratio_drift = 0.15,        -- harmonic, stable ratios
+    seq_density = 0.6,         -- moderate density
+    markov_style = "melodic",  -- stepwise motion
+    phase_lengths = {28, 24, 16, 32},
+  },
+  STREGA = {
+    name = "STREGA",
+    drift_configs  = {7, 4, 0},
+    morph_configs  = {7, 8, 2, 3},
+    chaos_configs  = {8, 9, 2, 7},
+    index_ceiling = 1.8,
+    cutoff_center = 800,       -- dark
+    drive_love = 0.7,          -- heavy saturation
+    phaser_love = 0.6,
+    exciter_love = 0.15,       -- minimal exciter (already saturated)
+    ratio_drift = 0.08,        -- very slow drift
+    seq_density = 0.35,        -- sparse, droney
+    markov_style = "clustered",
+    phase_lengths = {40, 32, 20, 48},
+  },
+  SUBOTNICK = {
+    name = "SUBOTNICK",
+    drift_configs  = {0, 1, 10, 4},
+    morph_configs  = {2, 3, 5, 6, 11},
+    chaos_configs  = {9, 8, 2, 5, 11},
+    index_ceiling = 1.5,
+    cutoff_center = 4000,
+    drive_love = 0.4,
+    phaser_love = 0.5,
+    exciter_love = 0.5,        -- bright, present
+    ratio_drift = 0.25,        -- adventurous
+    seq_density = 0.7,
+    markov_style = "wide",     -- big intervallic leaps
+    phase_lengths = {20, 20, 12, 28},
+  },
+  SERGE = {
+    name = "SERGE",
+    drift_configs  = {5, 6, 10, 3},
+    morph_configs  = {2, 5, 6, 8, 11},
+    chaos_configs  = {9, 8, 5, 2, 11, 6},
+    index_ceiling = 2.0,       -- max FM depth
+    cutoff_center = 2000,
+    drive_love = 0.5,
+    phaser_love = 0.3,
+    exciter_love = 0.4,
+    ratio_drift = 0.35,        -- aggressive ratio changes
+    seq_density = 0.85,        -- dense, rapid
+    markov_style = "angular",  -- tritones, major 7ths
+    phase_lengths = {16, 16, 12, 20},
+  },
+  ENO = {
+    name = "ENO",
+    drift_configs  = {0, 4, 1},
+    morph_configs  = {0, 1, 3, 10},
+    chaos_configs  = {3, 10, 0, 1},   -- even chaos is gentle
+    index_ceiling = 0.8,       -- low FM = pure overtones
+    cutoff_center = 6000,      -- open, airy
+    drive_love = 0.1,          -- almost no drive
+    phaser_love = 0.7,         -- lots of phasing
+    exciter_love = 0.6,        -- bright, harmonic-rich
+    ratio_drift = 0.1,         -- glacial
+    seq_density = 0.3,         -- very sparse
+    markov_style = "melodic",
+    phase_lengths = {48, 40, 24, 56},
+  },
+}
+
+-- --------------------------------------------------------------------------
 -- state
+-- --------------------------------------------------------------------------
+
 explorer.active = false
 explorer.phase = 1
 explorer.phase_beat = 0
@@ -31,111 +139,119 @@ explorer.intensity = 0.1
 explorer.intensity_start = 0.1
 explorer.intensity_end = 0.4
 explorer.step_count = 0
-explorer.scene_anchors = nil
 explorer.cycle_count = 0
+explorer.style = "EASEL"
+explorer.scene_anchors = nil
 
--- phase configuration
-local PHASE_CONFIG = {
-  -- DRIFT: gentle, conservative
-  [1] = {
-    name = "DRIFT",
-    length_range = {24, 40},
-    intensity_start = 0.05,
-    intensity_end = 0.35,
-    topology_prob = 0.02,      -- very rare topology changes
-    index_prob = 0.7,          -- frequent index riding
-    ratio_prob = 0.1,          -- rare ratio drift
-    waveshape_prob = 0.03,     -- very rare waveshape changes
-    filter_prob = 0.4,         -- moderate filter movement
-    effects_prob = 0.1,        -- subtle effects
-    index_magnitude = 0.03,    -- tiny nudges
-    filter_magnitude = 0.05,
-    ratio_magnitude = 0.1,     -- small ratio adjustments
-    prefer_configs = nil,      -- no preference
+-- internal dynamics
+explorer.momentum = 0.0        -- builds during phase, affects mutation magnitude
+explorer.tension = 0.0         -- rises in MORPH/CHAOS, drops in RESOLVE
+explorer.recent_topology = -1  -- tracks last topology set (avoids redundant changes)
+
+-- phase configuration (base values, multiplied by style)
+local PHASE_BASE = {
+  [1] = { -- DRIFT
+    intensity_range = {0.05, 0.30},
+    topology_prob = 0.03,
+    index_prob = 0.6,
+    ratio_prob = 0.08,
+    waveshape_prob = 0.02,
+    filter_prob = 0.4,
+    effects_prob = 0.15,
+    seq_mutate_prob = 0.05,
+    seq_plock_prob = 0.02,
+    magnitude = 0.3,
   },
-  -- MORPH: building, more adventurous
-  [2] = {
-    name = "MORPH",
-    length_range = {20, 36},
-    intensity_start = 0.30,
-    intensity_end = 0.70,
+  [2] = { -- MORPH
+    intensity_range = {0.25, 0.70},
     topology_prob = 0.15,
-    index_prob = 0.8,
-    ratio_prob = 0.25,
-    waveshape_prob = 0.12,
+    index_prob = 0.75,
+    ratio_prob = 0.20,
+    waveshape_prob = 0.10,
     filter_prob = 0.6,
     effects_prob = 0.3,
-    index_magnitude = 0.06,
-    filter_magnitude = 0.10,
-    ratio_magnitude = 0.2,
-    prefer_configs = {0, 1, 2, 3, 5, 6, 10},  -- avoid chaos configs
+    seq_mutate_prob = 0.15,
+    seq_plock_prob = 0.12,
+    magnitude = 0.6,
   },
-  -- CHAOS: maximum exploration, feedback configs
-  [3] = {
-    name = "CHAOS",
-    length_range = {12, 24},
-    intensity_start = 0.65,
-    intensity_end = 1.0,
-    topology_prob = 0.35,
+  [3] = { -- CHAOS
+    intensity_range = {0.60, 1.0},
+    topology_prob = 0.30,
     index_prob = 0.9,
-    ratio_prob = 0.4,
-    waveshape_prob = 0.25,
+    ratio_prob = 0.35,
+    waveshape_prob = 0.20,
     filter_prob = 0.8,
     effects_prob = 0.5,
-    index_magnitude = 0.12,
-    filter_magnitude = 0.20,
-    ratio_magnitude = 0.4,
-    prefer_configs = {2, 7, 8, 9},  -- feedback + chaos configs
+    seq_mutate_prob = 0.30,
+    seq_plock_prob = 0.25,
+    magnitude = 1.0,
   },
-  -- RESOLVE: pulling back, settling
-  [4] = {
-    name = "RESOLVE",
-    length_range = {24, 40},
-    intensity_start = 0.50,
-    intensity_end = 0.05,
+  [4] = { -- RESOLVE
+    intensity_range = {0.50, 0.05},
     topology_prob = 0.05,
-    index_prob = 0.5,
-    ratio_prob = 0.08,
-    waveshape_prob = 0.05,
-    filter_prob = 0.3,
-    effects_prob = 0.15,
-    index_magnitude = 0.02,
-    filter_magnitude = 0.03,
-    ratio_magnitude = 0.05,
-    prefer_configs = nil,  -- will pull toward anchor config
+    index_prob = 0.4,
+    ratio_prob = 0.05,
+    waveshape_prob = 0.03,
+    filter_prob = 0.25,
+    effects_prob = 0.1,
+    seq_mutate_prob = 0.03,
+    seq_plock_prob = 0.01,
+    magnitude = 0.2,
   },
 }
 
 -- mutation intervals (in beats)
 local INTERVALS = {
-  index = 2,        -- fast: indices are the expression
-  filter = 4,       -- moderate: filter is the breath
-  topology = 8,     -- slow: topology is the character
-  ratio = 6,        -- moderate: ratios are the spectrum
-  waveshape = 10,   -- slow: waveshape is the color
-  effects = 12,     -- slowest: effects are the space
-  sequencer = 8,    -- moderate: sequencer topology overrides
+  index = 2,
+  filter = 3,
+  topology = 6,
+  ratio = 5,
+  waveshape = 8,
+  effects = 10,
+  seq_melody = 4,
+  seq_timbre = 6,
+  seq_rhythm = 8,
+  dynamics = 4,     -- internal dynamics update
 }
 
 -- --------------------------------------------------------------------------
 -- lifecycle
 -- --------------------------------------------------------------------------
 
-function explorer.start()
+function explorer.start(style_name)
   explorer.active = true
+  explorer.style = style_name or "EASEL"
   explorer.step_count = 0
   explorer.cycle_count = 0
+  explorer.momentum = 0
+  explorer.tension = 0
+  explorer.recent_topology = -1
   explorer.save_anchors()
   explorer.enter_phase(explorer.DRIFT)
 end
 
 function explorer.stop()
   explorer.active = false
-  -- optionally restore anchors
   if explorer.scene_anchors then
-    explorer.restore_anchors(0.5)
+    explorer.restore_anchors(0.6)
   end
 end
+
+function explorer.set_style(name)
+  if STYLES[name] then explorer.style = name end
+end
+
+function explorer.get_style()
+  return STYLES[explorer.style] or STYLES.EASEL
+end
+
+function explorer.get_style_names()
+  return {"EASEL", "STREGA", "SUBOTNICK", "SERGE", "ENO"}
+end
+
+-- --------------------------------------------------------------------------
+-- scene anchors
+-- --------------------------------------------------------------------------
 
 function explorer.save_anchors()
   explorer.scene_anchors = {
@@ -156,6 +272,7 @@ function explorer.save_anchors()
     wsa_preset = params:get("wsa_preset"),
     wsb_preset = params:get("wsb_preset"),
     phaser_intensity = params:get("phaser_intensity"),
+    phaser_rate = params:get("phaser_rate"),
     exciter_amount = params:get("exciter_amount"),
     tilt_eq = params:get("tilt_eq"),
   }
@@ -166,11 +283,9 @@ function explorer.restore_anchors(strength)
   local a = explorer.scene_anchors
   local s = strength or 0.3
 
-  -- pull params toward anchors
   local function pull(name, target)
     local current = params:get(name)
-    local new_val = current + (target - current) * s
-    params:set(name, new_val)
+    params:set(name, current + (target - current) * s)
   end
 
   pull("master_index", a.master_index)
@@ -180,10 +295,7 @@ function explorer.restore_anchors(strength)
   pull("phaser_intensity", a.phaser_intensity)
   pull("exciter_amount", a.exciter_amount)
   pull("tilt_eq", a.tilt_eq)
-
-  for i = 1, 6 do
-    pull("index" .. i, a["index" .. i])
-  end
+  for i = 1, 6 do pull("index" .. i, a["index" .. i]) end
 end
 
 -- --------------------------------------------------------------------------
@@ -194,12 +306,36 @@ function explorer.enter_phase(phase_num)
   explorer.phase = phase_num
   explorer.phase_beat = 0
 
-  local cfg = PHASE_CONFIG[phase_num]
-  local lo, hi = cfg.length_range[1], cfg.length_range[2]
-  explorer.phase_length = math.random(lo, hi)
-  explorer.intensity_start = cfg.intensity_start
-  explorer.intensity_end = cfg.intensity_end
-  explorer.intensity = cfg.intensity_start
+  local sty = explorer.get_style()
+  local base_len = sty.phase_lengths[phase_num]
+  -- jitter: +/- 25%
+  local jitter = math.floor(base_len * 0.25)
+  explorer.phase_length = base_len + math.random(-jitter, jitter)
+
+  local base = PHASE_BASE[phase_num]
+  explorer.intensity_start = base.intensity_range[1]
+  explorer.intensity_end = base.intensity_range[2]
+  explorer.intensity = explorer.intensity_start
+
+  -- phase entry actions
+  if phase_num == explorer.CHAOS then
+    -- chaos entry: enable generative sequencer, trigger fill
+    local seq = require "lib/sequencer"
+    seq.generative = true
+    seq.markov_style = sty.markov_style
+    seq.fill_mode = true
+  elseif phase_num == explorer.RESOLVE then
+    -- resolve entry: disable generative, clear fill
+    local seq = require "lib/sequencer"
+    seq.generative = false
+    seq.fill_mode = false
+  elseif phase_num == explorer.DRIFT then
+    -- new cycle starts
+    local seq = require "lib/sequencer"
+    seq.generative = false
+    seq.fill_mode = false
+    seq.lsystem_gen = 0
+  end
 end
 
 function explorer.advance_phase()
@@ -207,8 +343,8 @@ function explorer.advance_phase()
   if next_phase > 4 then
     next_phase = 1
     explorer.cycle_count = explorer.cycle_count + 1
-    -- re-anchor at start of new cycle
-    if math.random() < 0.3 then
+    -- re-anchor every few cycles
+    if math.random() < 0.25 then
       explorer.save_anchors()
     end
   end
@@ -220,7 +356,7 @@ function explorer.get_phase_name()
 end
 
 -- --------------------------------------------------------------------------
--- tick (called every beat from the lattice)
+-- tick
 -- --------------------------------------------------------------------------
 
 function explorer.tick()
@@ -229,62 +365,80 @@ function explorer.tick()
   explorer.step_count = explorer.step_count + 1
   explorer.phase_beat = explorer.phase_beat + 1
 
-  -- update intensity arc
+  -- intensity arc
   local progress = explorer.phase_beat / math.max(explorer.phase_length, 1)
   progress = math.min(progress, 1)
   explorer.intensity = explorer.intensity_start +
     (explorer.intensity_end - explorer.intensity_start) * progress
 
-  local cfg = PHASE_CONFIG[explorer.phase]
-  local int = explorer.intensity
+  -- internal dynamics
+  explorer.update_dynamics(progress)
 
-  -- mutation checks at intervals
+  local sty = explorer.get_style()
+  local base = PHASE_BASE[explorer.phase]
+  local int = explorer.intensity
+  local mag = base.magnitude * (0.5 + explorer.momentum * 0.5)
+
+  -- mutations at intervals
   if explorer.step_count % INTERVALS.index == 0 then
-    if math.random() < cfg.index_prob * int then
-      explorer.mutate_indices(cfg, int)
+    if math.random() < base.index_prob * int then
+      explorer.mutate_indices(sty, mag)
     end
   end
 
   if explorer.step_count % INTERVALS.filter == 0 then
-    if math.random() < cfg.filter_prob * int then
-      explorer.mutate_filter(cfg, int)
+    if math.random() < base.filter_prob * int then
+      explorer.mutate_filter(sty, mag)
     end
   end
 
   if explorer.step_count % INTERVALS.topology == 0 then
-    if math.random() < cfg.topology_prob * int then
-      explorer.mutate_topology(cfg, int)
+    if math.random() < base.topology_prob * int then
+      explorer.mutate_topology(sty)
     end
   end
 
   if explorer.step_count % INTERVALS.ratio == 0 then
-    if math.random() < cfg.ratio_prob * int then
-      explorer.mutate_ratios(cfg, int)
+    if math.random() < base.ratio_prob * int then
+      explorer.mutate_ratios(sty, mag)
     end
   end
 
   if explorer.step_count % INTERVALS.waveshape == 0 then
-    if math.random() < cfg.waveshape_prob * int then
-      explorer.mutate_waveshape(cfg, int)
+    if math.random() < base.waveshape_prob * int then
+      explorer.mutate_waveshape()
     end
   end
 
   if explorer.step_count % INTERVALS.effects == 0 then
-    if math.random() < cfg.effects_prob * int then
-      explorer.mutate_effects(cfg, int)
+    if math.random() < base.effects_prob * int then
+      explorer.mutate_effects(sty, mag)
     end
   end
 
-  if explorer.step_count % INTERVALS.sequencer == 0 then
-    if math.random() < cfg.topology_prob * int * 0.5 then
-      explorer.mutate_sequencer(cfg, int)
+  -- sequencer mutations
+  if explorer.step_count % INTERVALS.seq_melody == 0 then
+    if math.random() < base.seq_mutate_prob * int then
+      explorer.mutate_seq_melody(sty, mag)
     end
   end
 
-  -- RESOLVE phase: pull toward anchors
+  if explorer.step_count % INTERVALS.seq_timbre == 0 then
+    if math.random() < base.seq_plock_prob * int then
+      explorer.mutate_seq_timbre(sty, mag)
+    end
+  end
+
+  if explorer.step_count % INTERVALS.seq_rhythm == 0 then
+    if math.random() < base.seq_mutate_prob * int * 0.5 then
+      explorer.mutate_seq_rhythm(sty, mag)
+    end
+  end
+
+  -- RESOLVE: pull toward anchors
   if explorer.phase == explorer.RESOLVE then
-    if math.random() < 0.15 * progress then
-      explorer.restore_anchors(0.15)
+    if math.random() < 0.12 * progress then
+      explorer.restore_anchors(0.12 + progress * 0.15)
     end
   end
 
@@ -295,105 +449,137 @@ function explorer.tick()
 end
 
 -- --------------------------------------------------------------------------
+-- internal dynamics
+-- --------------------------------------------------------------------------
+
+function explorer.update_dynamics(progress)
+  -- momentum: builds within a phase, resets on transition
+  if explorer.phase == explorer.CHAOS then
+    explorer.momentum = math.min(1.0, explorer.momentum + 0.03)
+  elseif explorer.phase == explorer.MORPH then
+    explorer.momentum = math.min(0.8, explorer.momentum + 0.015)
+  elseif explorer.phase == explorer.RESOLVE then
+    explorer.momentum = math.max(0, explorer.momentum - 0.04)
+  else -- DRIFT
+    explorer.momentum = math.max(0.1, explorer.momentum - 0.01)
+  end
+
+  -- tension: rises through MORPH->CHAOS, drops in RESOLVE
+  if explorer.phase <= 2 then
+    explorer.tension = math.min(1.0, explorer.tension + 0.008 * explorer.intensity)
+  elseif explorer.phase == 3 then
+    explorer.tension = math.min(1.0, explorer.tension + 0.02)
+  else
+    explorer.tension = math.max(0, explorer.tension - 0.05)
+  end
+end
+
+-- --------------------------------------------------------------------------
 -- mutations
 -- --------------------------------------------------------------------------
 
 local function nudge(name, amount, lo, hi)
-  local current = params:get(name)
-  local new_val = util.clamp(current + amount, lo, hi)
-  params:set(name, new_val)
+  params:set(name, util.clamp(params:get(name) + amount, lo, hi))
 end
 
-local function rand_delta(magnitude)
-  return (math.random() * 2 - 1) * magnitude
+local function rand_delta(mag)
+  return (math.random() * 2 - 1) * mag
 end
 
-function explorer.mutate_indices(cfg, int)
-  -- ride the FM indices — this is the core expressivity
-  local mag = cfg.index_magnitude * (0.5 + int * 0.5)
+function explorer.mutate_indices(sty, mag)
+  local idx_mag = mag * 0.08 * (1 + explorer.tension * 0.5)
 
-  -- master index: broad strokes
-  if math.random() < 0.4 then
-    nudge("master_index", rand_delta(mag * 2), 0.0, 2.0)
+  -- master index: broad gesture
+  if math.random() < 0.35 + explorer.tension * 0.2 then
+    nudge("master_index", rand_delta(idx_mag * 3), 0.0, sty.index_ceiling)
   end
 
-  -- individual indices: fine detail
-  local num_to_change = math.random(1, math.floor(1 + int * 4))
-  for _ = 1, num_to_change do
+  -- individual indices: detail work
+  local num = math.random(1, math.floor(1 + explorer.intensity * 4))
+  for _ = 1, num do
     local idx = math.random(1, 6)
-    nudge("index" .. idx, rand_delta(mag), 0.0, 2.0)
+    nudge("index" .. idx, rand_delta(idx_mag), 0.0, sty.index_ceiling)
   end
 end
 
-function explorer.mutate_filter(cfg, int)
-  local mag = cfg.filter_magnitude * (0.5 + int * 0.5)
+function explorer.mutate_filter(sty, mag)
+  local filter_mag = mag * 0.12
 
-  -- cutoff: exponential nudge (multiply by factor)
-  local cutoff_current = params:get("cutoff")
-  local factor = 1.0 + rand_delta(mag)
-  params:set("cutoff", util.clamp(cutoff_current * factor, 80, 16000))
+  -- cutoff: gravitates toward style center
+  local current = params:get("cutoff")
+  local pull = (sty.cutoff_center - current) * 0.05
+  local delta = pull + rand_delta(filter_mag * current * 0.3)
+  params:set("cutoff", util.clamp(current + delta, 60, 16000))
 
   -- resonance
-  if math.random() < 0.5 then
-    nudge("resonance", rand_delta(mag * 8), 0.0, 3.0)
+  if math.random() < 0.4 + explorer.tension * 0.3 then
+    nudge("resonance", rand_delta(filter_mag * 6), 0.0, 3.0)
   end
 
-  -- drive: builds during chaos, recedes during resolve
-  if explorer.phase == explorer.CHAOS then
-    if math.random() < 0.3 then
-      nudge("drive", math.random() * 0.1, 0.0, 0.8)
+  -- drive: style-dependent
+  if explorer.phase == explorer.CHAOS or explorer.phase == explorer.MORPH then
+    if math.random() < sty.drive_love then
+      nudge("drive", math.random() * 0.08 * mag, 0.0, sty.drive_love)
     end
   elseif explorer.phase == explorer.RESOLVE then
-    nudge("drive", -0.05, 0.0, 0.8)
+    nudge("drive", -0.04, 0.0, 1.0)
   end
 end
 
-function explorer.mutate_topology(cfg, int)
-  -- THE big move: changing FM routing topology
-  local new_config
-
-  if cfg.prefer_configs and math.random() < 0.7 then
-    -- pick from preferred configs for this phase
-    new_config = cfg.prefer_configs[math.random(#cfg.prefer_configs)]
+function explorer.mutate_topology(sty)
+  local configs
+  if explorer.phase == explorer.DRIFT then
+    configs = sty.drift_configs
+  elseif explorer.phase == explorer.MORPH then
+    configs = sty.morph_configs
+  elseif explorer.phase == explorer.CHAOS then
+    configs = sty.chaos_configs
   else
-    -- random topology
-    new_config = math.random(0, 11)
+    -- RESOLVE: pull toward anchor config
+    if explorer.scene_anchors and math.random() < 0.6 then
+      params:set("config", explorer.scene_anchors.config)
+      return
+    end
+    configs = sty.drift_configs
   end
 
+  -- pick from preferred configs, avoid repeating
+  local new_config
+  for _ = 1, 5 do
+    new_config = configs[math.random(#configs)]
+    if new_config ~= explorer.recent_topology then break end
+  end
+
+  explorer.recent_topology = new_config
   params:set("config", new_config + 1)
 end
 
-function explorer.mutate_ratios(cfg, int)
-  local mag = cfg.ratio_magnitude
+function explorer.mutate_ratios(sty, mag)
+  local ratio_mag = sty.ratio_drift * mag
 
-  -- pick one oscillator to shift
   local osc = math.random(2, 4)
   local current = params:get("ratio" .. osc)
 
-  if math.random() < 0.6 then
-    -- snap to nearby harmonic
-    local harmonics = {0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 4.0, 5.0, 6.0, 8.0}
+  -- style-dependent: harmonic snap vs free drift
+  if math.random() < (1 - ratio_mag) then
+    -- snap toward nearest harmonic
+    local harmonics = {0.5, 1.0, 1.5, 2.0, 3.0, 4.0, 5.0, 6.0, 8.0}
     local nearest = harmonics[1]
-    local min_dist = math.abs(current - nearest)
     for _, h in ipairs(harmonics) do
-      local dist = math.abs(current - h)
-      if dist < min_dist then
+      if math.abs(current - h) < math.abs(current - nearest) then
         nearest = h
-        min_dist = dist
       end
     end
-    -- drift toward nearest harmonic
-    local target = nearest + rand_delta(mag * 0.3)
-    params:set("ratio" .. osc, util.clamp(target, 0.25, 8.0))
+    params:set("ratio" .. osc, util.clamp(
+      nearest + rand_delta(ratio_mag * 0.2), 0.25, 8.0))
   else
-    -- free drift
-    local new_val = current + rand_delta(mag)
-    params:set("ratio" .. osc, util.clamp(new_val, 0.25, 8.0))
+    -- free inharmonic drift
+    params:set("ratio" .. osc, util.clamp(
+      current + rand_delta(ratio_mag), 0.25, 8.0))
   end
 end
 
-function explorer.mutate_waveshape(cfg, int)
-  -- waveshape changes are dramatic — full preset swaps
+function explorer.mutate_waveshape()
   if math.random() < 0.5 then
     params:set("wsa_preset", math.random(1, 8))
   else
@@ -401,54 +587,163 @@ function explorer.mutate_waveshape(cfg, int)
   end
 end
 
-function explorer.mutate_effects(cfg, int)
-  -- phaser builds with intensity
+function explorer.mutate_effects(sty, mag)
+  -- phaser: style-driven
   if explorer.phase == explorer.CHAOS or explorer.phase == explorer.MORPH then
-    nudge("phaser_intensity", math.random() * 0.08 * int, 0.0, 1.0)
+    nudge("phaser_intensity",
+      math.random() * 0.06 * mag * sty.phaser_love, 0.0, 0.9)
     if math.random() < 0.3 then
       nudge("phaser_rate", rand_delta(0.3), 0.1, 5.0)
     end
   elseif explorer.phase == explorer.RESOLVE then
-    nudge("phaser_intensity", -0.05, 0.0, 1.0)
+    nudge("phaser_intensity", -0.04, 0.0, 1.0)
   end
 
-  -- exciter: adds presence during buildup
-  if explorer.phase == explorer.MORPH or explorer.phase == explorer.CHAOS then
-    nudge("exciter_amount", rand_delta(0.05 * int), 0.0, 0.8)
-  elseif explorer.phase == explorer.RESOLVE then
-    nudge("exciter_amount", -0.03, 0.0, 0.8)
+  -- exciter: style-driven
+  if explorer.phase ~= explorer.RESOLVE then
+    nudge("exciter_amount",
+      rand_delta(0.04 * mag * sty.exciter_love), 0.0, 0.8)
+  else
+    nudge("exciter_amount", -0.03, 0.0, 1.0)
   end
 
-  -- tilt: drift
-  if math.random() < 0.3 then
-    nudge("tilt_eq", rand_delta(0.1 * int), -0.8, 0.8)
+  -- tilt: drift toward style center
+  local tilt_target = 0
+  if sty.cutoff_center > 3000 then tilt_target = 0.2  -- bright styles tilt bright
+  elseif sty.cutoff_center < 1500 then tilt_target = -0.2 end
+  nudge("tilt_eq", (tilt_target - params:get("tilt_eq")) * 0.1, -0.8, 0.8)
+end
+
+-- --------------------------------------------------------------------------
+-- sequencer mutations
+-- --------------------------------------------------------------------------
+
+function explorer.mutate_seq_melody(sty, mag)
+  local seq = require "lib/sequencer"
+  local len = seq.track_len[seq.TRACK_MELODY]
+
+  -- pick 1-3 steps to modify
+  local num = math.random(1, math.floor(1 + mag * 2))
+  for _ = 1, num do
+    local i = math.random(1, len)
+    local step = seq.melody[i]
+
+    local roll = math.random()
+    if roll < 0.4 then
+      -- markov note change
+      step.note = seq.markov_next(step.note)
+    elseif roll < 0.6 then
+      -- velocity shift
+      step.vel = util.clamp(step.vel + rand_delta(0.15 * mag), 0.2, 1.0)
+    elseif roll < 0.8 then
+      -- toggle step
+      step.on = not step.on
+    else
+      -- gate length variation
+      step.gate = math.random() < 0.5 and -1 or (0.1 + math.random() * 0.8)
+    end
+  end
+
+  -- during CHAOS: occasionally change track length (polymetric drift)
+  if explorer.phase == explorer.CHAOS and math.random() < 0.15 then
+    seq.track_len[seq.TRACK_MELODY] = math.random(5, 12)
   end
 end
 
-function explorer.mutate_sequencer(cfg, int)
-  -- per-step topology overrides: the killer feature
-  -- different FM routing per step creates rhythmic timbral variation
+function explorer.mutate_seq_timbre(sty, mag)
   local seq = require "lib/sequencer"
+  local len = seq.track_len[seq.TRACK_TIMBRE]
 
-  if explorer.phase == explorer.CHAOS then
-    -- assign random topologies to random steps
-    local num_steps = math.random(1, 3)
-    for _ = 1, num_steps do
-      local step = math.random(1, seq.num_steps)
-      if math.random() < 0.7 then
-        seq.set_step(step, "config", math.random(0, 11))
-      else
-        seq.set_step(step, "config", -1)  -- restore global
-      end
+  local i = math.random(1, len)
+  local step = seq.timbre[i]
+
+  local roll = math.random()
+  if roll < 0.25 then
+    -- topology p-lock
+    local configs
+    if explorer.phase == explorer.CHAOS then
+      configs = sty.chaos_configs
+    else
+      configs = sty.morph_configs
     end
-  elseif explorer.phase == explorer.RESOLVE then
-    -- clear per-step overrides
-    for i = 1, seq.num_steps do
-      if math.random() < 0.3 then
-        seq.set_step(i, "config", -1)
-      end
-    end
+    step.config = configs[math.random(#configs)]
+  elseif roll < 0.45 then
+    -- cutoff p-lock
+    step.cutoff = sty.cutoff_center * (0.3 + math.random() * 1.4)
+  elseif roll < 0.6 then
+    -- index p-lock
+    step.master_index = math.random() * sty.index_ceiling
+  elseif roll < 0.7 then
+    -- waveshape p-lock
+    step.wsa = math.random(0, 7)
+  elseif roll < 0.8 then
+    step.wsb = math.random(0, 7)
+  else
+    -- clear a p-lock (return to global)
+    local keys = {"config", "cutoff", "master_index", "wsa", "wsb",
+      "drive", "resonance", "ratio2", "ratio3", "ratio4"}
+    step[keys[math.random(#keys)]] = -1
   end
+
+  -- polymetric: drift timbre track length independently
+  if explorer.phase >= explorer.MORPH and math.random() < 0.1 then
+    seq.track_len[seq.TRACK_TIMBRE] = math.random(5, 13)
+  end
+end
+
+function explorer.mutate_seq_rhythm(sty, mag)
+  local seq = require "lib/sequencer"
+  local len = seq.track_len[seq.TRACK_RHYTHM]
+
+  local i = math.random(1, len)
+  local step = seq.rhythm[i]
+
+  local roll = math.random()
+  if roll < 0.4 then
+    -- change condition
+    if explorer.phase == explorer.DRIFT then
+      step.condition = ({1, 1, 1, 2, 3})[math.random(5)]  -- mostly ALWAYS
+    elseif explorer.phase == explorer.CHAOS then
+      step.condition = math.random(1, 10)  -- anything goes
+    else
+      step.condition = ({1, 1, 2, 3, 5, 6})[math.random(6)]
+    end
+  elseif roll < 0.6 then
+    -- ratchet
+    if explorer.phase == explorer.CHAOS then
+      step.ratchet = math.random(1, 4)
+    else
+      step.ratchet = math.random(1, 2)
+    end
+  elseif roll < 0.8 then
+    -- accent
+    step.accent = not step.accent
+  else
+    -- toggle fill condition
+    step.condition = step.condition == 9 and 1 or 9
+  end
+
+  -- rhythm track polymetric drift
+  if explorer.phase >= explorer.MORPH and math.random() < 0.08 then
+    seq.track_len[seq.TRACK_RHYTHM] = math.random(6, 11)
+  end
+end
+
+-- --------------------------------------------------------------------------
+-- info
+-- --------------------------------------------------------------------------
+
+function explorer.get_info()
+  return {
+    phase = PHASE_NAMES[explorer.phase],
+    style = explorer.style,
+    intensity = explorer.intensity,
+    momentum = explorer.momentum,
+    tension = explorer.tension,
+    beat = explorer.phase_beat,
+    length = explorer.phase_length,
+    cycle = explorer.cycle_count,
+  }
 end
 
 return explorer

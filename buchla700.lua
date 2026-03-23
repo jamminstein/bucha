@@ -64,7 +64,8 @@ local WS_NAMES = {
 local RATIOS = {0.25, 0.5, 0.75, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 5.0, 6.0, 7.0, 8.0}
 
 -- bandmate style names
-local BANDMATE_STYLES = {"DRIFT", "PULSE", "BELLS", "VOICE", "CHAOS"}
+local BANDMATE_VOICES = {"DRIFT", "PULSE", "BELLS", "VOICE", "SWARM"}
+local EXPLORER_STYLES = {"EASEL", "STREGA", "SUBOTNICK", "SERGE", "ENO"}
 
 -- state
 local config = 0
@@ -82,7 +83,8 @@ local phaser_rate = 1.0
 local phaser_depth = 0.5
 local exciter_amount = 0.3
 local tilt_eq = 0.0
-local shift_held = false
+local k2_held = false
+local k3_press_time = 0
 
 -- MIDI
 local midi_in_device
@@ -272,15 +274,27 @@ function init()
     controlspec.new(0.05, 1.0, 'lin', 0.01, 0.5, ""))
   params:set_action("seq_gate", function(v) seq.gate_length = v end)
 
-  -- BANDMATE
-  params:add_group("BANDMATE", 2)
-  params:add_option("bandmate_style", "bandmate style",
-    BANDMATE_STYLES, 1)
-  params:set_action("bandmate_style", function(v)
-    bandmate.set_style(BANDMATE_STYLES[v])
+  -- AUTONOMOUS
+  params:add_group("AUTONOMOUS", 4)
+  params:add_option("explorer_style", "explorer style",
+    EXPLORER_STYLES, 1)
+  params:set_action("explorer_style", function(v)
+    explorer.set_style(EXPLORER_STYLES[v])
+  end)
+
+  params:add_option("bandmate_voice", "bandmate voice",
+    BANDMATE_VOICES, 1)
+  params:set_action("bandmate_voice", function(v)
+    bandmate.set_voice(BANDMATE_VOICES[v])
   end)
 
   params:add_number("bandmate_root", "bandmate root", 24, 72, 48)
+
+  params:add_option("markov_style", "markov style",
+    {"melodic", "angular", "clustered", "wide"}, 1)
+  params:set_action("markov_style", function(v)
+    seq.markov_style = ({"melodic", "angular", "clustered", "wide"})[v]
+  end)
 
   -- MIDI
   params:add_group("MIDI", 3)
@@ -319,6 +333,12 @@ function init()
   explorer_sprocket = my_lattice:new_sprocket{
     action = function(t)
       explorer.tick()
+      -- sync bandmate with explorer state
+      bandmate.sync_explorer(
+        explorer.phase,
+        explorer.intensity,
+        explorer.tension
+      )
       grid_dirty = true
     end,
     division = 1/4,
@@ -398,29 +418,71 @@ end
 function seq_step()
   if current_note then note_off(current_note) end
 
+  -- swing
   local swing_delay = seq.get_swing_delay()
   if swing_delay > 0 then
     clock.sleep(swing_delay * clock.get_beat_sec())
   end
 
-  if seq.should_play() then
-    local step = seq.get_step()
+  -- conditional trigger check
+  if seq.should_fire() then
+    local melody = seq.get_melody_step()
+    if melody and melody.on then
 
-    -- per-step topology override
-    if step.config >= 0 then
-      engine.config(step.config)
-    elseif step.config == -1 then
-      engine.config(config)
+      -- apply p-locks (timbre track overrides)
+      local plocks = seq.get_plocks()
+      local restore = {}
+
+      if plocks.config then
+        engine.config(plocks.config)
+      else
+        engine.config(config)
+      end
+      if plocks.cutoff then
+        restore.cutoff = params:get("cutoff")
+        engine.cutoff(plocks.cutoff)
+      end
+      if plocks.master_index then
+        restore.master_index = params:get("master_index")
+        engine.master_index(plocks.master_index)
+      end
+      if plocks.wsa then engine.wsa(plocks.wsa) end
+      if plocks.wsb then engine.wsb(plocks.wsb) end
+      if plocks.drive then engine.drive(plocks.drive) end
+      if plocks.resonance then engine.resonance(plocks.resonance) end
+
+      -- velocity with accent
+      local vel = melody.vel
+      if seq.is_accent() then vel = math.min(1.0, vel * 1.3) end
+
+      -- ratchets: subdivide the step
+      local ratchet = seq.get_ratchet()
+      local gate = seq.get_gate_length()
+
+      if ratchet > 1 then
+        -- ratcheted: multiple triggers within one step
+        local sub_gate = gate / ratchet * 0.7
+        for r = 1, ratchet do
+          clock.run(function()
+            clock.sleep((r - 1) * (1 / ratchet) * clock.get_beat_sec())
+            note_on(melody.note, vel * (1 - (r-1) * 0.15))
+            clock.sleep(sub_gate * clock.get_beat_sec())
+            note_off(melody.note)
+          end)
+        end
+      else
+        -- normal single trigger
+        note_on(melody.note, vel)
+        clock.run(function()
+          clock.sleep(gate * clock.get_beat_sec())
+          note_off(melody.note)
+          -- restore p-locked params
+          if restore.cutoff then engine.cutoff(restore.cutoff) end
+          if restore.master_index then engine.master_index(restore.master_index) end
+          if not plocks.config then engine.config(config) end
+        end)
+      end
     end
-
-    local vel = step.vel / 127
-    note_on(step.note, vel)
-
-    local gate = seq.get_gate_length()
-    clock.run(function()
-      clock.sleep(gate * clock.get_beat_sec())
-      note_off(step.note)
-    end)
   end
 
   seq.advance()
@@ -461,7 +523,7 @@ function enc(n, d)
     end
   elseif page == 4 then
     if n == 2 then
-      if shift_held then
+      if k2_held then
         params:delta("drive", d)
       else
         params:delta("cutoff", d)
@@ -471,13 +533,13 @@ function enc(n, d)
     end
   elseif page == 5 then
     if n == 2 then
-      if shift_held then
+      if k2_held then
         params:delta("phaser_rate", d)
       else
         params:delta("phaser_intensity", d)
       end
     elseif n == 3 then
-      if shift_held then
+      if k2_held then
         params:delta("tilt_eq", d)
       else
         params:delta("exciter_amount", d)
@@ -489,51 +551,61 @@ end
 
 function key(n, z)
   if n == 2 then
-    shift_held = (z == 1)
-    if z == 0 then
-      -- short press: toggle sequencer
+    -- K2: play/stop sequencer
+    if z == 1 then
+      k2_held = true
+    else
+      k2_held = false
       seq.playing = not seq.playing
       if not seq.playing and current_note then note_off(current_note) end
       if seq.playing then seq.reset() end
     end
-  elseif n == 3 and z == 1 then
-    if shift_held then
-      -- K2+K3: toggle bandmate + explorer (the autonomous systems)
-      if bandmate.active then
-        bandmate.stop()
-        explorer.stop()
-      else
-        bandmate.start(
-          params:get("bandmate_root"),
-          BANDMATE_STYLES[params:get("bandmate_style")]
-        )
-        explorer.start()
-      end
+
+  elseif n == 3 then
+    if z == 1 then
+      -- K3 press: start timer for long press detection
+      k3_press_time = util.time()
     else
-      -- K3 alone: page-specific randomize
-      if page == 1 then
-        config = math.random(0, 11)
-        params:set("config", config + 1)
-        for i = 1, 3 do
-          ratio_idx[i] = math.random(1, #RATIOS)
-          params:set("ratio" .. (i + 1), RATIOS[ratio_idx[i]])
+      -- K3 release: check duration
+      local held = util.time() - (k3_press_time or 0)
+      if held > 0.5 then
+        -- LONG PRESS: toggle bandmate + explorer
+        if bandmate.active then
+          bandmate.stop()
+          explorer.stop()
+        else
+          explorer.start(EXPLORER_STYLES[params:get("explorer_style")])
+          bandmate.start(
+            params:get("bandmate_root"),
+            BANDMATE_VOICES[params:get("bandmate_voice")]
+          )
         end
-      elseif page == 2 then
-        for i = 1, 3 do
-          ratio_idx[i] = math.random(1, #RATIOS)
-          params:set("ratio" .. (i + 1), RATIOS[ratio_idx[i]])
+      else
+        -- SHORT TAP: page-specific randomize
+        if page == 1 then
+          config = math.random(0, 11)
+          params:set("config", config + 1)
+          for i = 1, 3 do
+            ratio_idx[i] = math.random(1, #RATIOS)
+            params:set("ratio" .. (i + 1), RATIOS[ratio_idx[i]])
+          end
+        elseif page == 2 then
+          for i = 1, 3 do
+            ratio_idx[i] = math.random(1, #RATIOS)
+            params:set("ratio" .. (i + 1), RATIOS[ratio_idx[i]])
+          end
+        elseif page == 3 then
+          wsa_preset = math.random(0, 7)
+          wsb_preset = math.random(0, 7)
+          params:set("wsa_preset", wsa_preset + 1)
+          params:set("wsb_preset", wsb_preset + 1)
+        elseif page == 4 then
+          params:set("cutoff", math.random(100, 8000))
+          params:set("resonance", math.random() * 2.5)
+        elseif page == 5 then
+          params:set("phaser_intensity", math.random() * 0.8)
+          params:set("exciter_amount", math.random() * 0.6)
         end
-      elseif page == 3 then
-        wsa_preset = math.random(0, 7)
-        wsb_preset = math.random(0, 7)
-        params:set("wsa_preset", wsa_preset + 1)
-        params:set("wsb_preset", wsb_preset + 1)
-      elseif page == 4 then
-        params:set("cutoff", math.random(100, 8000))
-        params:set("resonance", math.random() * 2.5)
-      elseif page == 5 then
-        params:set("phaser_intensity", math.random() * 0.8)
-        params:set("exciter_amount", math.random() * 0.6)
       end
     end
   end
@@ -572,13 +644,15 @@ function redraw()
     screen.text(explorer.get_phase_name():sub(1,3))
   end
 
-  -- sequencer dots
+  -- sequencer dots (melody track position)
   if seq.playing then
     screen.level(6)
     screen.rect(60, 1, 2, 2)
     screen.fill()
-    for i = 1, seq.num_steps do
-      screen.level(i == seq.current_step and 15 or 3)
+    local mel_len = seq.track_len[seq.TRACK_MELODY]
+    local mel_pos = seq.track_pos[seq.TRACK_MELODY]
+    for i = 1, math.min(mel_len, 16) do
+      screen.level(i == mel_pos and 15 or 3)
       screen.rect(64 + (i-1) * 3, 2, 1, 1)
       screen.fill()
     end
@@ -654,7 +728,7 @@ function draw_topology_page()
 
   screen.level(2)
   screen.move(1, 63)
-  screen.text("E2:config E3:idx K2+K3:auto")
+  screen.text("E2:config E3:idx K3:rnd hold:auto")
 end
 
 function draw_ratios_page()
@@ -790,7 +864,7 @@ function draw_filter_page()
 
   screen.level(2)
   screen.move(1, 63)
-  screen.text(shift_held and "E2:drive  E3:res" or "E2:cutoff  E3:res  K2+E2:drive")
+  screen.text(k2_held and "E2:drive  E3:res" or "E2:cutoff  E3:res  hK2:drive")
 end
 
 function draw_effects_page()
@@ -841,20 +915,27 @@ function draw_effects_page()
     screen.text(tilt_eq < 0 and "DARK" or "BRIT")
   end
 
-  -- bandmate info (bottom right when active)
-  if bandmate.active then
-    local info = bandmate.get_info()
+  -- autonomous info (bottom right when active)
+  if bandmate.active or explorer.active then
+    local ei = explorer.get_info()
+    local bi = bandmate.get_info()
     screen.level(4)
-    screen.move(70, 54)
-    screen.text(info.style .. " " .. info.breath)
-    screen.level(math.floor(info.energy * 12) + 2)
-    screen.rect(70, 56, info.energy * 56, 2)
+    screen.move(70, 48)
+    screen.text(ei.style:sub(1,4) .. " " .. ei.phase:sub(1,3))
+    screen.level(math.floor(ei.intensity * 10) + 2)
+    screen.rect(70, 50, ei.intensity * 56, 2)
+    screen.fill()
+    screen.level(4)
+    screen.move(70, 58)
+    screen.text(bi.voice .. " " .. bi.breath)
+    screen.level(math.floor(bi.energy * 10) + 2)
+    screen.rect(70, 60, bi.energy * 56, 2)
     screen.fill()
   end
 
   screen.level(2)
   screen.move(1, 63)
-  screen.text(shift_held and "E2:rate  E3:tilt" or "E2:phaser  E3:exciter  K2=shift")
+  screen.text(k2_held and "E2:rate  E3:tilt" or "E2:phaser  E3:exciter  hK2:alt")
 end
 
 -- --------------------------------------------------------------------------
@@ -886,7 +967,7 @@ function grid_key(x, y, z)
         else
           bandmate.start(
             params:get("bandmate_root"),
-            BANDMATE_STYLES[params:get("bandmate_style")]
+            BANDMATE_VOICES[params:get("bandmate_voice")]
           )
         end
       elseif x == 15 then
@@ -894,7 +975,7 @@ function grid_key(x, y, z)
         if explorer.active then
           explorer.stop()
         else
-          explorer.start()
+          explorer.start(EXPLORER_STYLES[params:get("explorer_style")])
         end
       elseif x == 16 then
         -- play/stop sequencer
@@ -913,24 +994,18 @@ function grid_key(x, y, z)
         params:set("wsb_preset", wsb_preset + 1)
       end
 
-    -- ROW 3: sequencer step toggle
+    -- ROW 3: melody step toggle
     elseif y == 3 then
-      if x >= 1 and x <= 16 then
-        local step = seq.steps[x]
-        if step then
-          step.on = not step.on
-        end
+      if x >= 1 and x <= seq.track_len[seq.TRACK_MELODY] then
+        seq.melody[x].on = not seq.melody[x].on
       end
 
-    -- ROW 4: per-step topology override
+    -- ROW 4: timbre p-lock topology (press to cycle)
     elseif y == 4 then
-      if x >= 1 and x <= 16 then
-        local step = seq.steps[x]
-        if step then
-          -- cycle: -1 (global) -> 0 -> 1 -> ... -> 11 -> -1
-          step.config = step.config + 1
-          if step.config > 11 then step.config = -1 end
-        end
+      if x >= 1 and x <= seq.track_len[seq.TRACK_TIMBRE] then
+        local step = seq.timbre[x]
+        step.config = step.config + 1
+        if step.config > 11 then step.config = -1 end
       end
 
     -- ROWS 5-8: index faders + controls
@@ -944,11 +1019,11 @@ function grid_key(x, y, z)
       elseif x >= 8 and x <= 16 and y == 5 then
         local val = util.linlin(8, 16, 0, 2.0, x)
         params:set("master_index", val)
-      -- col 8-12, row 6: bandmate style
+      -- col 8-12, row 6: bandmate voice
       elseif x >= 8 and x <= 12 and y == 6 then
-        local style_idx = x - 7
-        if style_idx >= 1 and style_idx <= #BANDMATE_STYLES then
-          params:set("bandmate_style", style_idx)
+        local voice_idx = x - 7
+        if voice_idx >= 1 and voice_idx <= #BANDMATE_VOICES then
+          params:set("bandmate_voice", voice_idx)
         end
       -- col 8-11, row 7: force explorer phase
       elseif x >= 8 and x <= 11 and y == 7 then
@@ -1013,32 +1088,35 @@ function grid_redraw()
     g:led(x, 2, (x - 9) == wsb_preset and 12 or 3)
   end
 
-  -- ROW 3: sequencer steps
-  for x = 1, seq.num_steps do
-    local step = seq.steps[x]
+  -- ROW 3: melody steps
+  local mel_len = seq.track_len[seq.TRACK_MELODY]
+  local mel_pos = seq.track_pos[seq.TRACK_MELODY]
+  for x = 1, mel_len do
+    local step = seq.melody[x]
     local bright = 0
     if step and step.on then
-      bright = 6
-      if seq.playing and x == seq.current_step then
-        bright = 15
-      end
+      bright = math.floor(step.vel * 8) + 2
+      if seq.playing and x == mel_pos then bright = 15 end
     else
-      if seq.playing and x == seq.current_step then
-        bright = 4
-      end
+      if seq.playing and x == mel_pos then bright = 4 end
     end
     g:led(x, 3, bright)
   end
 
-  -- ROW 4: per-step topology override
-  for x = 1, seq.num_steps do
-    local step = seq.steps[x]
+  -- ROW 4: timbre p-lock topology
+  local tim_len = seq.track_len[seq.TRACK_TIMBRE]
+  local tim_pos = seq.track_pos[seq.TRACK_TIMBRE]
+  for x = 1, tim_len do
+    local step = seq.timbre[x]
     if step then
       if step.config >= 0 then
-        -- brightness maps to config number (1-12 -> 2-13)
-        g:led(x, 4, math.floor(2 + step.config * 11 / 11))
+        g:led(x, 4, math.floor(3 + step.config))
       else
-        g:led(x, 4, 1)  -- global = very dim
+        g:led(x, 4, 1)
+      end
+      -- timbre playhead
+      if seq.playing and x == tim_pos then
+        g:led(x, 4, 15)
       end
     end
   end
@@ -1069,10 +1147,10 @@ function grid_redraw()
     end
   end
 
-  -- ROW 6, cols 8-12: bandmate style
-  for i = 1, #BANDMATE_STYLES do
+  -- ROW 6, cols 8-12: bandmate voice
+  for i = 1, #BANDMATE_VOICES do
     local x = i + 7
-    local is_current = (BANDMATE_STYLES[i] == bandmate.style)
+    local is_current = (BANDMATE_VOICES[i] == bandmate.voice)
     g:led(x, 6, is_current and 12 or 3)
   end
 
