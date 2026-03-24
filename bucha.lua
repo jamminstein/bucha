@@ -742,9 +742,9 @@ function init()
   params:set_action("seq_gate", function(v) seq.gate_length = v end)
 
   params:add_option("seq_division", "seq division",
-    {"1/1", "1/2", "1/4", "1/8", "1/16", "1/32"}, 4)  -- default 1/8
+    {"1/1", "1/2", "1/4", "1/8", "1/16"}, 4)  -- default 1/8
   params:set_action("seq_division", function(v)
-    local divs = {1, 1/2, 1/4, 1/8, 1/16, 1/32}
+    local divs = {1, 1/2, 1/4, 1/8, 1/16}
     if seq_sprocket then seq_sprocket:set_division(divs[v]) end
   end)
 
