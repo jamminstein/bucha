@@ -461,15 +461,53 @@ function octopus.start(soul_name, root)
   local seq = octopus.seq
   seq.markov_style = soul.markov
 
-  -- FUNK: lay down initial groove pattern + set swing
+  -- FUNK: lay down initial groove pattern + set swing + start sequencer
   if soul.is_funk then
+    -- ensure 16-step pattern for funk
+    seq.track_len[seq.TRACK_MELODY] = 16
+    seq.track_len[seq.TRACK_RHYTHM] = 16
+    seq.track_len[seq.TRACK_TIMBRE] = 16
     apply_funk_pattern(seq, soul)
     local sw = soul.swing_range or {55, 65}
     seq.swing = math.random(sw[1], sw[2])
-    -- warm starting params
-    params:set("sub_osc", 0.2)
-    params:set("lfo_filter", 0.15)
+    -- start the sequencer if not already playing
+    if not seq.playing then
+      seq.playing = true
+      seq.reset()
+    end
+    -- FUNK TIMBRE: short punchy envelope, warm filter, sub bass
+    params:set("attack", 0.001)
+    params:set("decay", 0.15)
+    params:set("sustain_level", 0.3)
+    params:set("release", 0.08)
+    params:set("sub_osc", 0.3)
+    params:set("noise", 0.02)
+    params:set("cutoff", 1800)
+    params:set("resonance", 0.8)
+    params:set("drive", 0.15)
+    params:set("lfo_filter", 0.25)
     params:set("lfo_filter_rate", 4)
+    -- warm topology
+    params:set("config", 1)  -- SYMMETRIC = fat
+    params:set("master_index", 0.4)
+    -- seq division to 1/16 for funk
+    params:set("seq_division", 5)
+    -- set seq gate short for tight funk
+    params:set("seq_gate", 0.3)
+    -- add timbre p-locks for variation
+    for i = 1, 16 do
+      local step = seq.timbre[i]
+      if math.random() < 0.35 then
+        step.config = ({0, 1, 3, 4})[math.random(4)]  -- warm topologies
+      end
+      if math.random() < 0.25 then
+        step.cutoff = math.random(800, 4000)  -- filter variation per step
+      end
+      -- accented steps get brighter filter
+      if seq.melody[i] and seq.melody[i].vel > 0.7 then
+        step.cutoff = math.random(2500, 6000)
+      end
+    end
   end
 end
 
@@ -883,6 +921,27 @@ local function apply_funk_pattern(seq, soul)
   local pattern = FUNK_PATTERNS[math.random(#FUNK_PATTERNS)]
   local mel_len = seq.track_len[seq.TRACK_MELODY]
   local rhy_len = seq.track_len[seq.TRACK_RHYTHM]
+
+  -- generate funk bass line: pentatonic around root
+  local root = seq.root or 48
+  -- ensure root is in a good bass range (36-60)
+  while root < 36 do root = root + 12 end
+  while root > 60 do root = root - 12 end
+  local penta = {0, 3, 5, 7, 10, 12}
+  for i = 1, math.min(mel_len, 16) do
+    local step = seq.melody[i]
+    -- funk bass: mostly root and fifth, with pentatonic fills
+    local roll = math.random()
+    if roll < 0.35 then
+      step.note = root  -- sit on the root
+    elseif roll < 0.55 then
+      step.note = root + 7  -- the fifth
+    elseif roll < 0.7 then
+      step.note = root + 12  -- octave up
+    else
+      step.note = root + penta[math.random(#penta)]
+    end
+  end
 
   for i = 1, math.min(mel_len, 16) do
     local p = pattern[i] or 0
