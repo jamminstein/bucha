@@ -716,6 +716,9 @@ end
 function octopus.tick()
   if not octopus.active then return end
 
+  -- song mode: must run first, before any tentacle updates
+  octopus.song_tick()
+
   octopus.step = octopus.step + 1
   local soul = octopus.get_soul()
 
@@ -1614,7 +1617,20 @@ function octopus.act_form(soul)
       end
     end
 
-    octopus.form_phase = octopus.form_template[octopus.form_idx]
+    local candidate_phase = octopus.form_template[octopus.form_idx]
+
+    -- song mode: filter phase through allowed_phases
+    if octopus.song_section and octopus.song_section.allowed_phases then
+      local allowed = false
+      for _, p in ipairs(octopus.song_section.allowed_phases) do
+        if candidate_phase == p then allowed = true; break end
+      end
+      if not allowed then
+        candidate_phase = octopus.song_section.allowed_phases[math.random(#octopus.song_section.allowed_phases)]
+      end
+    end
+
+    octopus.form_phase = candidate_phase
 
     -- notify phase change listeners (scale progression etc.)
     if octopus.on_phase_change then
@@ -1834,8 +1850,198 @@ function octopus.get_tentacle_energy(idx)
   return 0
 end
 
+-- --------------------------------------------------------------------------
+-- song mode
+-- --------------------------------------------------------------------------
+
+local SONG_MODES = {
+  FREEFORM = nil,  -- no song mode, current behavior
+
+  ARC = {
+    name = "ARC",
+    description = "slow build to single climax",
+    sections = {
+      { name = "INTRO",    bars = 13, energy_ceiling = 0.35, energy_floor = 0.05, allowed_phases = {"DRIFT", "REST", "BUILD"}, density = 0.25 },
+      { name = "EMERGE",   bars = 19, energy_ceiling = 0.55, energy_floor = 0.1,  allowed_phases = {"DRIFT", "BUILD", "PEAK"}, density = 0.4 },
+      { name = "BUILD",    bars = 23, energy_ceiling = 0.75, energy_floor = 0.25, allowed_phases = {"BUILD", "DRIFT", "PEAK"}, density = 0.6 },
+      { name = "RISE",     bars = 11, energy_ceiling = 0.9,  energy_floor = 0.4,  allowed_phases = {"BUILD", "PEAK", "DRIFT"}, density = 0.8 },
+      { name = "CLIMAX",   bars = 17, energy_ceiling = 1.0,  energy_floor = 0.55, allowed_phases = {"PEAK", "BUILD", "DRIFT"}, density = 0.95 },
+      { name = "RELEASE",  bars = 14, energy_ceiling = 0.6,  energy_floor = 0.1,  allowed_phases = {"REST", "DRIFT", "BUILD"}, density = 0.4 },
+      { name = "DISSOLVE", bars = 21, energy_ceiling = 0.3,  energy_floor = 0.05, allowed_phases = {"REST", "DRIFT", "BUILD"}, density = 0.2 },
+      { name = "SILENCE",  bars = 7,  energy_ceiling = 0.15, energy_floor = 0.0,  allowed_phases = {"REST", "DRIFT"}, density = 0.1 },
+    },
+    loops = false,
+  },
+
+  WAVE = {
+    name = "WAVE",
+    description = "three waves, each bigger",
+    sections = {
+      { name = "CALM",     bars = 11, energy_ceiling = 0.35, energy_floor = 0.05, allowed_phases = {"DRIFT", "REST", "BUILD"}, density = 0.25 },
+      { name = "WAVE 1",   bars = 17, energy_ceiling = 0.65, energy_floor = 0.15, allowed_phases = {"BUILD", "PEAK", "DRIFT"}, density = 0.5 },
+      { name = "VALLEY",   bars = 7,  energy_ceiling = 0.35, energy_floor = 0.05, allowed_phases = {"REST", "DRIFT", "BUILD"}, density = 0.3 },
+      { name = "WAVE 2",   bars = 23, energy_ceiling = 0.8,  energy_floor = 0.25, allowed_phases = {"BUILD", "PEAK", "DRIFT"}, density = 0.7 },
+      { name = "VALLEY",   bars = 9,  energy_ceiling = 0.3,  energy_floor = 0.05, allowed_phases = {"REST", "DRIFT", "BUILD"}, density = 0.25 },
+      { name = "WAVE 3",   bars = 29, energy_ceiling = 1.0,  energy_floor = 0.4,  allowed_phases = {"BUILD", "PEAK", "DRIFT"}, density = 0.95 },
+      { name = "WASH",     bars = 13, energy_ceiling = 0.4,  energy_floor = 0.05, allowed_phases = {"REST", "DRIFT", "BUILD"}, density = 0.2 },
+    },
+    loops = true,
+  },
+
+  RONDO = {
+    name = "RONDO",
+    description = "A-B-A-C-A, always returns home",
+    sections = {
+      { name = "HOME (A)",    bars = 15, energy_ceiling = 0.55, energy_floor = 0.15, allowed_phases = {"DRIFT", "BUILD", "REST"}, density = 0.5 },
+      { name = "EXPLORE (B)", bars = 19, energy_ceiling = 0.75, energy_floor = 0.25, allowed_phases = {"BUILD", "PEAK", "DRIFT"}, density = 0.65 },
+      { name = "HOME (A)",    bars = 11, energy_ceiling = 0.5,  energy_floor = 0.1,  allowed_phases = {"DRIFT", "REST", "BUILD"}, density = 0.5 },
+      { name = "VENTURE (C)", bars = 23, energy_ceiling = 0.9,  energy_floor = 0.35, allowed_phases = {"BUILD", "PEAK", "DRIFT"}, density = 0.8 },
+      { name = "HOME (A)",    bars = 13, energy_ceiling = 0.5,  energy_floor = 0.1,  allowed_phases = {"DRIFT", "REST", "BUILD"}, density = 0.45 },
+      { name = "CODA",        bars = 9,  energy_ceiling = 0.3,  energy_floor = 0.05, allowed_phases = {"REST", "DRIFT"}, density = 0.2 },
+    },
+    loops = true,
+  },
+
+  THROUGH = {
+    name = "THROUGH",
+    description = "continuous evolution, never repeats",
+    sections = {
+      { name = "SEED",      bars = 7,  energy_ceiling = 0.3,  energy_floor = 0.05, allowed_phases = {"DRIFT", "REST"}, density = 0.2 },
+      { name = "SPROUT",    bars = 11, energy_ceiling = 0.45, energy_floor = 0.1,  allowed_phases = {"DRIFT", "BUILD", "REST"}, density = 0.35 },
+      { name = "GROW",      bars = 17, energy_ceiling = 0.6,  energy_floor = 0.2,  allowed_phases = {"BUILD", "DRIFT", "PEAK"}, density = 0.5 },
+      { name = "BRANCH",    bars = 19, energy_ceiling = 0.75, energy_floor = 0.3,  allowed_phases = {"BUILD", "PEAK", "DRIFT"}, density = 0.6 },
+      { name = "BLOOM",     bars = 23, energy_ceiling = 0.85, energy_floor = 0.35, allowed_phases = {"PEAK", "BUILD", "DRIFT"}, density = 0.75 },
+      { name = "FRUIT",     bars = 13, energy_ceiling = 1.0,  energy_floor = 0.5,  allowed_phases = {"PEAK", "BUILD"}, density = 0.9 },
+      { name = "WITHER",    bars = 11, energy_ceiling = 0.6,  energy_floor = 0.15, allowed_phases = {"REST", "DRIFT", "BUILD"}, density = 0.45 },
+      { name = "COMPOST",   bars = 17, energy_ceiling = 0.3,  energy_floor = 0.05, allowed_phases = {"REST", "DRIFT"}, density = 0.15 },
+      { name = "DORMANT",   bars = 9,  energy_ceiling = 0.15, energy_floor = 0.0,  allowed_phases = {"REST", "DRIFT"}, density = 0.05 },
+    },
+    loops = false,
+  },
+}
+
+local SONG_MODE_NAMES = {"FREEFORM", "ARC", "WAVE", "RONDO", "THROUGH"}
+
+-- song mode state
+octopus.song_mode = nil         -- current song mode table, nil = freeform
+octopus.song_section_idx = 1   -- current section index
+octopus.song_section_beat = 0  -- beats elapsed in current section (16th notes)
+octopus.song_section = nil     -- current section table
+octopus.song_active = false    -- is song mode running
+octopus.song_energy_ceiling = 1.0
+octopus.song_energy_floor = 0.0
+
+-- section change callback
+octopus.on_section_change = nil
+
+local function apply_song_section(section)
+  octopus.song_section = section
+  octopus.song_section_beat = 0
+  octopus.song_energy_ceiling = section.energy_ceiling
+  octopus.song_energy_floor = section.energy_floor
+
+  -- force form phase into allowed set
+  if section.allowed_phases then
+    local found = false
+    for _, p in ipairs(section.allowed_phases) do
+      if octopus.form_phase == p then found = true; break end
+    end
+    if not found then
+      octopus.form_phase = section.allowed_phases[1]
+    end
+  end
+
+  -- switch soul if specified
+  if section.soul then
+    for i, name in ipairs(SOUL_NAMES) do
+      if name == section.soul then
+        params:set("octopus_soul", i)
+        break
+      end
+    end
+  end
+
+  -- switch tuning if specified
+  if section.tuning then
+    params:set("tuning_system", section.tuning)
+  end
+
+  -- notify listeners
+  if octopus.on_section_change then
+    octopus.on_section_change(section)
+  end
+end
+
+function octopus.song_tick()
+  if not octopus.song_mode then return end
+
+  octopus.song_section_beat = octopus.song_section_beat + 1
+  local bars_elapsed = math.floor(octopus.song_section_beat / 16)
+
+  if octopus.song_section and bars_elapsed >= octopus.song_section.bars then
+    -- advance to next section
+    octopus.song_section_idx = octopus.song_section_idx + 1
+    if octopus.song_section_idx > #octopus.song_mode.sections then
+      if octopus.song_mode.loops then
+        octopus.song_section_idx = 1
+      else
+        -- song finished, revert to freeform
+        octopus.stop_song()
+        return
+      end
+    end
+    apply_song_section(octopus.song_mode.sections[octopus.song_section_idx])
+  end
+
+  -- clamp all tentacle energies to song section bounds
+  if octopus.song_section then
+    for i = 1, NUM_TENTACLES do
+      local t = octopus.tentacles[i]
+      if t then
+        t.energy = util.clamp(t.energy, octopus.song_energy_floor, octopus.song_energy_ceiling)
+      end
+    end
+  end
+end
+
+function octopus.start_song(mode_name)
+  local mode = SONG_MODES[mode_name]
+  if not mode then
+    octopus.stop_song()
+    return
+  end
+  octopus.song_mode = mode
+  octopus.song_section_idx = 1
+  octopus.song_active = true
+  apply_song_section(mode.sections[1])
+end
+
+function octopus.stop_song()
+  octopus.song_mode = nil
+  octopus.song_section = nil
+  octopus.song_active = false
+  octopus.song_energy_ceiling = 1.0
+  octopus.song_energy_floor = 0.0
+end
+
+function octopus.get_song_progress()
+  if not octopus.song_mode then return nil end
+  local total_bars = 0
+  local elapsed_bars = 0
+  for i, section in ipairs(octopus.song_mode.sections) do
+    total_bars = total_bars + section.bars
+    if i < octopus.song_section_idx then
+      elapsed_bars = elapsed_bars + section.bars
+    elseif i == octopus.song_section_idx then
+      elapsed_bars = elapsed_bars + math.floor(octopus.song_section_beat / 16)
+    end
+  end
+  return elapsed_bars / math.max(total_bars, 1)
+end
+
 -- exports
 octopus.SOUL_NAMES = SOUL_NAMES
+octopus.SONG_MODE_NAMES = SONG_MODE_NAMES
 octopus.TENTACLE_NAMES = TENTACLE_NAMES
 octopus.NUM_TENTACLES = NUM_TENTACLES
 

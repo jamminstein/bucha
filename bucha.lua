@@ -893,6 +893,19 @@ function init()
   params:add_option("chord_inversion", "inversion",
     {"ROOT", "1ST", "2ND", "RANDOM"}, 1)
 
+  -- SONG MODE
+  params:add_group("SONG MODE", 1)
+  params:add_option("song_mode", "song mode", octopus.SONG_MODE_NAMES, 1)
+  params:set_action("song_mode", function(v)
+    local name = octopus.SONG_MODE_NAMES[v]
+    if name == "FREEFORM" then
+      octopus.stop_song()
+    else
+      octopus.start_song(name)
+    end
+    screen_dirty = true
+  end)
+
   -- AUDIO INPUT
   params:add_group("AUDIO INPUT", 1)
   params:add_control("audio_in", "audio in",
@@ -1866,19 +1879,60 @@ function draw_octopus_page()
   screen.move(2, 7)
   screen.text(oi.soul)
 
-  -- form phase (top right)
-  screen.level(8)
-  screen.move(96, 7)
-  screen.text(oi.form)
+  -- song mode: section name at top center, progress bar + markers at bottom
+  if octopus.song_section then
+    -- section name
+    screen.level(12)
+    screen.move(64, 8)
+    screen.text_center(octopus.song_section.name)
 
-  -- form progress bar
-  screen.level(3)
-  screen.rect(96, 9, 30, 2)
-  screen.stroke()
-  screen.level(10)
-  local progress = oi.form_length > 0 and (oi.form_beat / oi.form_length) or 0
-  screen.rect(96, 9, progress * 30, 2)
-  screen.fill()
+    -- section markers (row above progress bar)
+    if octopus.song_mode then
+      local total_bars = 0
+      for _, s in ipairs(octopus.song_mode.sections) do total_bars = total_bars + s.bars end
+      local x_offset = 2
+      for i, s in ipairs(octopus.song_mode.sections) do
+        local w = math.floor(124 * s.bars / total_bars)
+        screen.level(i == octopus.song_section_idx and 12 or 2)
+        screen.rect(x_offset, 58, math.max(w - 1, 1), 1)
+        screen.fill()
+        x_offset = x_offset + w
+      end
+    end
+
+    -- progress bar background
+    screen.level(3)
+    screen.rect(2, 60, 124, 2)
+    screen.fill()
+    -- progress bar fill
+    local song_progress = octopus.get_song_progress() or 0
+    screen.level(15)
+    screen.rect(2, 60, math.floor(124 * song_progress), 2)
+    screen.fill()
+  end
+
+  -- form phase (top right — only when no song section name occupying top center)
+  if not octopus.song_section then
+    screen.level(8)
+    screen.move(96, 7)
+    screen.text(oi.form)
+  else
+    -- show form phase smaller at far right
+    screen.level(5)
+    screen.move(106, 7)
+    screen.text(oi.form:sub(1, 3))
+  end
+
+  -- form progress bar (only when no song mode)
+  if not octopus.song_section then
+    screen.level(3)
+    screen.rect(96, 9, 30, 2)
+    screen.stroke()
+    screen.level(10)
+    local progress = oi.form_length > 0 and (oi.form_beat / oi.form_length) or 0
+    screen.rect(96, 9, progress * 30, 2)
+    screen.fill()
+  end
 
   -- duo mode labels near melody/topology tentacles
   if params:get("duo_mode") == 2 and octopus.active then
@@ -1896,14 +1950,17 @@ function draw_octopus_page()
     screen.text("B")
   end
 
+  -- bottom row: use y=56 when song mode active (to clear the progress bar area)
+  local bottom_y = octopus.song_section and 56 or 63
+
   -- active / bandmate
   if octopus.active then
     screen.level(math.floor(4 + total_energy * 8))
-    screen.move(2, 63)
+    screen.move(2, bottom_y)
     screen.text("ALIVE")
   else
     screen.level(3)
-    screen.move(2, 63)
+    screen.move(2, bottom_y)
     screen.text("SLEEP")
   end
 
@@ -1912,18 +1969,25 @@ function draw_octopus_page()
   if cm > 1 then
     local chord_names = {"", "TRI", "7TH", "SUS", "CLU", "OPN"}
     screen.level(6)
-    screen.move(36, 63)
+    screen.move(36, bottom_y)
     screen.text(chord_names[cm])
   end
 
   local bi = bandmate.get_info()
   screen.level(5)
-  screen.move(54, 63)
+  screen.move(54, bottom_y)
   screen.text(bi.voice)
 
-  screen.level(2)
-  screen.move(80, 63)
-  screen.text("E2:soul E3:voice")
+  if not octopus.song_section then
+    screen.level(2)
+    screen.move(80, bottom_y)
+    screen.text("E2:soul E3:voice")
+  else
+    -- show the song mode name
+    screen.level(3)
+    screen.move(80, bottom_y)
+    screen.text(octopus.song_mode and octopus.song_mode.name or "")
+  end
 end
 
 -- --------------------------------------------------------------------------
