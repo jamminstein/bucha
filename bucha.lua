@@ -199,7 +199,7 @@ local function advance_progression(new_phase)
   -- count phase changes and gate by speed setting
   progression_phase_count = progression_phase_count + 1
   local speed = params:get("progression_speed")
-  local threshold = ({1, 2, 4})[speed]
+  local threshold = ({1, 2, 3, 4, 6, 8, 12, 16})[speed]
   if progression_phase_count < threshold then return end
   progression_phase_count = 0
 
@@ -695,7 +695,7 @@ function init()
   params:add_option("progression_mode", "progression",
     {"OFF", "DIATONIC", "MODAL", "CHROMATIC", "RANDOM"}, 1)
   params:add_option("progression_speed", "prog speed",
-    {"EVERY PHASE", "EVERY 2", "EVERY 4"}, 1)
+    {"EVERY PHASE", "EVERY 2", "EVERY 3", "EVERY 4", "EVERY 6", "EVERY 8", "EVERY 12", "EVERY 16"}, 1)
 
   -- CHORD MODE
   params:add_group("CHORD MODE", 2)
