@@ -828,17 +828,17 @@ function init()
     controlspec.new(0, 1, 'lin', 0.05, 0.0, ""))
   params:set_action("hat_ring", function(v) drum_hat_ring = v end)
   -- rim/snare synth
-  params:add_separator("RIM/SNARE")
-  params:add_control("rim_pitch", "rim pitch",
+  params:add_separator("SNARE")
+  params:add_control("rim_pitch", "snare pitch",
     controlspec.new(0.3, 3.0, 'exp', 0.01, 1.0, "x"))
   params:set_action("rim_pitch", function(v) drum_rim_pitch = v end)
-  params:add_control("rim_decay", "rim decay",
+  params:add_control("rim_decay", "snare decay",
     controlspec.new(0.01, 0.5, 'exp', 0.01, 0.06, "s"))
   params:set_action("rim_decay", function(v) drum_rim_decay = v end)
-  params:add_control("rim_drive", "rim drive",
+  params:add_control("rim_drive", "snare drive",
     controlspec.new(0, 1, 'lin', 0.05, 0.0, ""))
   params:set_action("rim_drive", function(v) drum_rim_drive = v end)
-  params:add_control("rim_snappy", "rim snappy",
+  params:add_control("rim_snappy", "snare snappy",
     controlspec.new(0, 1, 'lin', 0.05, 0.5, ""))
   params:set_action("rim_snappy", function(v) drum_rim_snappy = v end)
 
