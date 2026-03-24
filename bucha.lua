@@ -904,22 +904,7 @@ function init()
       clock.sleep(1/15)
       anim_phase = anim_phase + 0.05
       if anim_phase > 2 * math.pi then anim_phase = anim_phase - 2 * math.pi end
-      -- CPU protection: throttle octopus speed if CPU is high
-      if norns.cpu > 65 then
-        local current_speed = params:get("octopus_speed")
-        if current_speed > 2 then
-          -- temporarily reduce to "normal" (index 2)
-          local divs = {1/4, 1/8, 1/16, 1/32}
-          if octopus_sprocket then octopus_sprocket:set_division(divs[2]) end
-          if bandmate_sprocket then bandmate_sprocket:set_division(divs[2]) end
-        end
-      else
-        -- restore speed from param
-        local current_speed = params:get("octopus_speed")
-        local divs = {1/4, 1/8, 1/16, 1/32}
-        if octopus_sprocket then octopus_sprocket:set_division(divs[current_speed]) end
-        if bandmate_sprocket then bandmate_sprocket:set_division(divs[current_speed]) end
-      end
+      -- CPU protection removed (norns.cpu is not a simple number)
       screen_dirty = true
       redraw()
       if grid_dirty then
