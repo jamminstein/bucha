@@ -100,11 +100,42 @@ local max_voices = 6
 -- CC out: track last sent values to avoid flooding
 local last_cc = {}
 
+-- drums (creative metronome)
+local drum_active = false
+local drum_step = 0
+local drum_pattern = 1
+local drum_vol = 0.4
+local drum_tone = 0.5
+local DRUM_PATTERNS = {
+  -- name, kick[], hat[], rim[]  (1 = hit, 0 = rest, 0.5 = ghost)
+  { name = "FOUR",      kick = {1,0,0,0, 1,0,0,0, 1,0,0,0, 1,0,0,0},
+                         hat  = {0,0,1,0, 0,0,1,0, 0,0,1,0, 0,0,1,0},
+                         rim  = {0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0} },
+  { name = "BACKBEAT",   kick = {1,0,0,0, 0,0,0,0, 1,0,0,0, 0,0,0,0},
+                         hat  = {1,0,1,0, 1,0,1,0, 1,0,1,0, 1,0,1,0},
+                         rim  = {0,0,0,0, 1,0,0,0, 0,0,0,0, 1,0,0,0} },
+  { name = "FUNK",       kick = {1,0,0,0, 0,0,1,0, 0,0,1,0, 0,0,0,0},
+                         hat  = {1,0.5,1,0.5, 1,0.5,1,0.5, 1,0.5,1,0.5, 1,0.5,1,0.5},
+                         rim  = {0,0,0,0, 1,0,0,0.5, 0,0,0,0, 1,0,0.5,0} },
+  { name = "BREAKBEAT",  kick = {1,0,0,0, 0,0,0,0, 0,0,1,0, 0,0,0,0},
+                         hat  = {1,0,1,0.5, 1,0,1,0, 1,0.5,1,0, 1,0,1,0.5},
+                         rim  = {0,0,0,0, 1,0,0,0, 0,0,0,0, 1,0,0,0.5} },
+  { name = "HALFTIME",   kick = {1,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0},
+                         hat  = {0,0,0,0, 0,0,0,0, 0,0,1,0, 0,0,0,0},
+                         rim  = {0,0,0,0, 0,0,0,0, 1,0,0,0, 0,0,0,0} },
+  { name = "PULSE",      kick = {0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0},
+                         hat  = {0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0},
+                         rim  = {1,0,0,0, 1,0,0,0, 1,0,0,0, 1,0,0,0} },
+}
+local DRUM_PATTERN_NAMES = {}
+for _, p in ipairs(DRUM_PATTERNS) do table.insert(DRUM_PATTERN_NAMES, p.name) end
+
 -- lattice
 local my_lattice
 local seq_sprocket
 local explorer_sprocket
 local bandmate_sprocket
+local drum_sprocket
 local octopus_sprocket
 local midi_clock_sprocket
 
@@ -700,6 +731,24 @@ function init()
     engine.max_voices(v)
   end)
 
+  -- DRUMS (creative metronome)
+  params:add_group("DRUMS", 4)
+  params:add_option("drum_active", "drums", {"off", "on"}, 1)
+  params:set_action("drum_active", function(v)
+    drum_active = (v == 2)
+  end)
+  params:add_option("drum_pattern", "pattern", DRUM_PATTERN_NAMES, 1)
+  params:set_action("drum_pattern", function(v)
+    drum_pattern = v
+    drum_step = 0
+  end)
+  params:add_control("drum_vol", "drum vol",
+    controlspec.new(0, 1, 'lin', 0.05, 0.4, ""))
+  params:set_action("drum_vol", function(v) drum_vol = v end)
+  params:add_control("drum_tone", "drum tone",
+    controlspec.new(0, 1, 'lin', 0.05, 0.5, ""))
+  params:set_action("drum_tone", function(v) drum_tone = v end)
+
   -- SCALE LOCK
   params:add_group("SCALE LOCK", 2)
   params:add_option("scale_lock", "scale lock", SCALE_NAMES, 1)
@@ -885,6 +934,25 @@ function init()
       end
     end,
     division = 1/96,  -- 24ppqn: 24 clocks per quarter note = 96 per whole note
+    enabled = true
+  }
+
+  drum_sprocket = my_lattice:new_sprocket{
+    action = function(t)
+      if not drum_active then return end
+      drum_step = (drum_step % 16) + 1
+      local pat = DRUM_PATTERNS[drum_pattern]
+      if not pat then return end
+
+      local k = pat.kick[drum_step] or 0
+      local h = pat.hat[drum_step] or 0
+      local r = pat.rim[drum_step] or 0
+
+      if k > 0 then engine.drum_kick(drum_vol * k, drum_tone) end
+      if h > 0 then engine.drum_hat(drum_vol * 0.6 * h, drum_tone) end
+      if r > 0 then engine.drum_rim(drum_vol * 0.7 * r, drum_tone) end
+    end,
+    division = 1/16,  -- 16th note grid
     enabled = true
   }
 
