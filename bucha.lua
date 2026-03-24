@@ -1218,20 +1218,24 @@ function seq_step()
       local ratchet = seq.get_ratchet()
       local gate = seq.get_gate_length()
 
+      -- apply octopus spatial pan if set
+      local oct_pan = octopus and octopus.next_pan
+      if oct_pan then octopus.next_pan = nil end
+
       if ratchet > 1 then
         -- ratcheted: multiple triggers within one step
         local sub_gate = gate / ratchet * 0.7
         for r = 1, ratchet do
           clock.run(function()
             clock.sleep((r - 1) * (1 / ratchet) * clock.get_beat_sec())
-            note_on(melody.note, vel * (1 - (r-1) * 0.15))
+            note_on(melody.note, vel * (1 - (r-1) * 0.15), oct_pan)
             clock.sleep(sub_gate * clock.get_beat_sec())
             note_off(melody.note)
           end)
         end
       else
         -- normal single trigger
-        note_on(melody.note, vel)
+        note_on(melody.note, vel, oct_pan)
         clock.run(function()
           clock.sleep(gate * clock.get_beat_sec())
           note_off(melody.note)

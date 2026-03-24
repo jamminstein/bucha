@@ -379,6 +379,7 @@ octopus.form_idx = 1
 octopus.form_beat = 0
 octopus.form_length = 32
 octopus.cycle = 0
+octopus.next_pan = nil  -- spatial pan set by SPACE tentacle, consumed by seq_step
 
 -- scene anchors
 octopus.anchors = nil
@@ -1443,6 +1444,46 @@ function octopus.act_space(soul)
   elseif octopus.form_phase == "REST" then
     nudge("audio_in", -0.03, 0.0, 1.0)
   end
+
+  -- SPATIAL: pan movement — notes drift across the stereo field
+  if math.random() < 0.25 * t.energy then
+    -- pan is per-note so we set it for next notes via a state var
+    local pan_target
+    if octopus.form_phase == "PEAK" then
+      -- wide, dramatic panning
+      pan_target = (math.random() - 0.5) * 1.6
+    elseif octopus.form_phase == "DRIFT" then
+      -- gentle drift around center
+      pan_target = (math.random() - 0.5) * 0.6
+    else
+      pan_target = (math.random() - 0.5) * 1.0
+    end
+    octopus.next_pan = pan_target
+  end
+
+  -- FUNK: ride the drum synthesis params
+  if soul.is_funk and math.random() < 0.2 * t.energy then
+    local drum_roll = math.random()
+    if drum_roll < 0.3 then
+      -- kick character: pitch + decay variation
+      nudge("drum_kick_pitch", rand_delta(0.15), 0.5, 2.0)
+      nudge("drum_kick_decay", rand_delta(0.04), 0.05, 0.4)
+    elseif drum_roll < 0.5 then
+      -- kick drive: gritty vs clean
+      nudge("drum_kick_drive", rand_delta(0.1), 0.0, 0.8)
+    elseif drum_roll < 0.7 then
+      -- hat: tone and decay (open/closed feel)
+      nudge("drum_hat_tone", rand_delta(0.15), 0.2, 1.0)
+      nudge("drum_hat_decay", rand_delta(0.03), 0.02, 0.25)
+    elseif drum_roll < 0.85 then
+      -- snare: snappy + pitch
+      nudge("drum_snare_snappy", rand_delta(0.12), 0.1, 1.0)
+      nudge("drum_snare_pitch", rand_delta(0.15), 0.5, 2.0)
+    else
+      -- snare drive: lo-fi crunch
+      nudge("drum_snare_drive", rand_delta(0.1), 0.0, 0.7)
+    end
+  end
 end
 
 -- 7. FORM: the conductor
@@ -1486,6 +1527,8 @@ function octopus.act_form(soul)
     if octopus.form_phase == "REST" then
       -- pull toward anchors more strongly
       octopus.restore_anchors(0.45)
+      -- amp: breathe down
+      nudge("amp", -0.08, 0.5, 1.0)
       -- dramatic: drop delay/reverb tails
       nudge("delay_feedback", -0.15, 0.0, 0.9)
       -- silence some tentacles for contrast
@@ -1509,6 +1552,8 @@ function octopus.act_form(soul)
         octopus.tentacles[i].energy = math.max(octopus.tentacles[i].energy, 0.7)
         octopus.tentacles[i].breath_phase = "play"
       end
+      -- amp: full presence
+      nudge("amp", 0.08, 0.6, 1.0)
       -- dramatic entry: boost intensity immediately
       nudge("delay_mix", 0.15, 0.0, 0.8)
       nudge("reverb_mix", 0.1, 0.0, 0.85)
@@ -1530,6 +1575,8 @@ function octopus.act_form(soul)
           octopus.tentacles[i].breath_phase = "build"
         end
       end
+      -- amp: gradually rise
+      nudge("amp", 0.04, 0.55, 1.0)
     elseif octopus.form_phase == "DRIFT" then
       -- gentle pull toward anchors
       octopus.restore_anchors(0.2)
