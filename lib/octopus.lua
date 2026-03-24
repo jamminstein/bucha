@@ -1466,22 +1466,22 @@ function octopus.act_space(soul)
     local drum_roll = math.random()
     if drum_roll < 0.3 then
       -- kick character: pitch + decay variation
-      nudge("drum_kick_pitch", rand_delta(0.15), 0.5, 2.0)
-      nudge("drum_kick_decay", rand_delta(0.04), 0.05, 0.4)
+      nudge("kick_pitch", rand_delta(0.15), 0.5, 2.0)
+      nudge("kick_decay", rand_delta(0.04), 0.05, 0.4)
     elseif drum_roll < 0.5 then
       -- kick drive: gritty vs clean
-      nudge("drum_kick_drive", rand_delta(0.1), 0.0, 0.8)
+      nudge("kick_drive", rand_delta(0.1), 0.0, 0.8)
     elseif drum_roll < 0.7 then
-      -- hat: tone and decay (open/closed feel)
-      nudge("drum_hat_tone", rand_delta(0.15), 0.2, 1.0)
-      nudge("drum_hat_decay", rand_delta(0.03), 0.02, 0.25)
+      -- hat: pitch and decay (open/closed feel)
+      nudge("hat_pitch", rand_delta(0.15), 0.3, 2.0)
+      nudge("hat_decay", rand_delta(0.03), 0.02, 0.25)
     elseif drum_roll < 0.85 then
       -- snare: snappy + pitch
-      nudge("drum_snare_snappy", rand_delta(0.12), 0.1, 1.0)
-      nudge("drum_snare_pitch", rand_delta(0.15), 0.5, 2.0)
+      nudge("rim_snappy", rand_delta(0.12), 0.1, 1.0)
+      nudge("rim_pitch", rand_delta(0.15), 0.5, 2.0)
     else
       -- snare drive: lo-fi crunch
-      nudge("drum_snare_drive", rand_delta(0.1), 0.0, 0.7)
+      nudge("rim_drive", rand_delta(0.1), 0.0, 0.7)
     end
   end
 end
