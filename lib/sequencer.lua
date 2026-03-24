@@ -90,6 +90,21 @@ local MARKOV_INTERVALS = {
     {5, 1},
     {-5, 1},
   },
+  funky = {
+    {0, 4},    -- repeat (the ONE — sit on it)
+    {-2, 2},   -- whole step down (pull)
+    {2, 2},    -- whole step up (push)
+    {3, 2.5},  -- minor third (blues)
+    {-3, 2.5}, -- minor third down
+    {5, 2},    -- fourth (funk staple)
+    {-5, 2},   -- fourth down
+    {7, 1.5},  -- fifth
+    {-7, 1.5},
+    {-1, 1.5}, -- chromatic approach from below
+    {1, 1.5},  -- chromatic approach from above
+    {10, 1},   -- flat 7 (dominant funk)
+    {-2, 1},
+  },
 }
 
 -- --------------------------------------------------------------------------

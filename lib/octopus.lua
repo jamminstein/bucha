@@ -290,9 +290,55 @@ local SOULS = {
   },
 }
 
+  -- FUNK: Clyde Stubblefield meets Zigaboo Modeliste meets Tony Allen.
+  -- THE ONE is sacred. Everything syncopates around it.
+  -- Ghost notes, displaced accents, auto-wah, tight pocket.
+  FUNK = {
+    name = "FUNK",
+    -- RHYTHM tentacle is the STAR. FILTER is the wah. MELODY is tight.
+    activity = {0.5, 0.8, 1.5, 2.0, 1.0, 0.6, 1.2, 0.4},
+    -- topologies: warm, fat, not metallic
+    topo_drift  = {0, 1, 4},
+    topo_build  = {0, 1, 3, 4},
+    topo_peak   = {0, 2, 3, 5},
+    topo_rest   = {0, 4, 1},
+    -- spectrum: warm, fat, sub-heavy
+    index_ceiling = 0.8,           -- low FM = warm
+    ratio_style = "harmonic",      -- clean ratios
+    ws_change_rate = 0.04,         -- stable waveshape
+    -- filter: auto-wah territory
+    cutoff_center = 1500,          -- mid-low, envelope does the talking
+    cutoff_range = 6000,           -- wide for wah sweeps
+    res_love = 0.5,                -- enough for wah character
+    drive_love = 0.35,             -- warm saturation
+    -- rhythm: THIS IS IT
+    density_range = {0.6, 0.95},   -- dense but with pockets
+    ratchet_love = 0.15,           -- tasteful 16th fills, not machine gun
+    condition_variety = 0.35,      -- syncopation through conditions
+    -- melody: tight, pentatonic, close to root
+    markov = "funky",
+    melody_inject_rate = 0.18,     -- regular injection
+    -- space: tight, dry
+    phaser_love = 0.15,            -- minimal phasing
+    exciter_love = 0.2,            -- subtle presence
+    tilt_center = -0.1,            -- slightly dark
+    -- form: locked groove, occasional breaks
+    form_dramatics = 0.8,          -- longer phases = deeper pocket
+    silence_love = 0.08,           -- almost never silent — the groove doesn't stop
+    -- chaos: minimal — funk is DISCIPLINE
+    chaos_freq = 0.05,
+    chaos_magnitude = 0.3,
+    -- FUNK-SPECIFIC fields
+    is_funk = true,
+    swing_range = {55, 68},        -- swing amount range
+    ghost_velocity = 0.25,         -- ghost note velocity
+    accent_velocity = 1.0,         -- accent velocity
+  },
+}
+
 local SOUL_NAMES = {
   "SUBOTNICK", "OLIVEROS", "BUCHLA", "XENAKIS",
-  "ENO", "COLTRANE", "MILES", "APHEX"
+  "ENO", "COLTRANE", "MILES", "APHEX", "FUNK"
 }
 
 -- --------------------------------------------------------------------------
@@ -307,6 +353,16 @@ local FORM_TEMPLATES = {
   {"DRIFT", "BUILD", "PEAK", "PEAK", "REST"},
   {"REST", "BUILD", "PEAK", "REST", "DRIFT", "BUILD", "PEAK"},
   {"DRIFT", "BUILD", "REST", "BUILD", "PEAK", "REST"},
+}
+
+-- funk templates: heavy groove, short breaks, locked pocket
+local FUNK_FORM_TEMPLATES = {
+  {"BUILD", "PEAK", "PEAK", "PEAK", "REST"},              -- long groove, short break
+  {"BUILD", "PEAK", "PEAK", "BUILD", "PEAK", "REST"},     -- double build
+  {"PEAK", "PEAK", "PEAK", "REST", "PEAK", "PEAK"},       -- barely rests
+  {"DRIFT", "BUILD", "PEAK", "PEAK", "PEAK", "PEAK", "REST"}, -- slow burn to locked groove
+  {"PEAK", "REST", "PEAK", "PEAK", "REST", "PEAK"},       -- call and response sections
+  {"BUILD", "BUILD", "PEAK", "PEAK", "PEAK", "REST", "BUILD", "PEAK"}, -- long build
 }
 
 -- --------------------------------------------------------------------------
@@ -385,12 +441,18 @@ function octopus.start(soul_name, root)
   end
 
   -- form
-  octopus.form_template = FORM_TEMPLATES[math.random(#FORM_TEMPLATES)]
+  local soul = octopus.get_soul()
+
+  -- pick form template based on soul
+  if soul.is_funk then
+    octopus.form_template = FUNK_FORM_TEMPLATES[math.random(#FUNK_FORM_TEMPLATES)]
+  else
+    octopus.form_template = FORM_TEMPLATES[math.random(#FORM_TEMPLATES)]
+  end
   octopus.form_idx = 1
   octopus.form_phase = octopus.form_template[1]
   octopus.form_beat = 0
 
-  local soul = octopus.get_soul()
   octopus.form_length = math.random(20, 40)
 
   -- save anchors
@@ -399,6 +461,17 @@ function octopus.start(soul_name, root)
   -- enable generative sequencer
   local seq = octopus.seq
   seq.markov_style = soul.markov
+
+  -- FUNK: lay down initial groove pattern + set swing
+  if soul.is_funk then
+    apply_funk_pattern(seq, soul)
+    local sw = soul.swing_range or {55, 65}
+    seq.swing = math.random(sw[1], sw[2])
+    -- warm starting params
+    params:set("sub_osc", 0.2)
+    params:set("lfo_filter", 0.15)
+    params:set("lfo_filter_rate", 4)
+  end
 end
 
 function octopus.stop()
@@ -716,13 +789,42 @@ end
 -- 3. FILTER: the lungs — BREATHES with dramatic sweeps
 function octopus.act_filter(soul)
   local t = octopus.tentacles[T_FILTER]
-  local mag = t.energy * 0.25  -- bigger base magnitude
+  local mag = t.energy * 0.25
 
-  -- cutoff: gravitates toward soul's center but with WIDE breathing
+  -- FUNK: auto-wah behavior — LFO filter does the talking
+  if soul.is_funk then
+    local current = params:get("cutoff")
+    -- cutoff: tight around center, the LFO does the sweep
+    local pull = (soul.cutoff_center - current) * 0.12
+    params:set("cutoff", util.clamp(current + pull + rand_delta(200), 40, 18000))
+
+    -- LFO > filter: the auto-wah engine
+    if octopus.form_phase == "PEAK" or octopus.form_phase == "BUILD" then
+      -- open the wah: push LFO filter amount up
+      nudge("lfo_filter", math.random() * 0.06 * t.energy, 0.0, 0.7)
+      -- rate syncs loosely to groove feel
+      local wah_rates = {2, 3, 4, 6, 8}
+      if math.random() < 0.2 then
+        params:set("lfo_filter_rate", wah_rates[math.random(#wah_rates)])
+      end
+    elseif octopus.form_phase == "REST" then
+      nudge("lfo_filter", -0.04, 0.0, 0.8)
+    else
+      nudge("lfo_filter", rand_delta(0.03), 0.0, 0.5)
+    end
+
+    -- resonance: enough for wah character
+    nudge("resonance", rand_delta(mag * 3), 0.0, 1.8)
+
+    -- drive: warm, not harsh
+    nudge("drive", rand_delta(0.02), 0.0, soul.drive_love)
+    return
+  end
+
+  -- NON-FUNK: original behavior
   local current = params:get("cutoff")
   local pull = (soul.cutoff_center - current) * 0.06
 
-  -- form-dependent sweep intensity
   local sweep_mult = 1.0
   if octopus.form_phase == "PEAK" then sweep_mult = 2.5
   elseif octopus.form_phase == "BUILD" then sweep_mult = 1.8
@@ -752,45 +854,197 @@ function octopus.act_filter(soul)
   end
 end
 
+-- --------------------------------------------------------------------------
+-- FUNK RHYTHM ENGINE
+-- syncopation patterns inspired by classic funk drumming
+-- --------------------------------------------------------------------------
+
+-- funk accent patterns (16 steps): 1 = accent, 0.5 = ghost, 0 = rest
+-- these are the SKELETON — the tentacle mutates around them
+local FUNK_PATTERNS = {
+  -- Clyde Stubblefield "Funky Drummer" feel
+  {1, 0, 0.5, 0, 0.5, 0, 1, 0.5, 0, 0.5, 1, 0, 0.5, 0, 0.5, 0},
+  -- Zigaboo Modeliste "Cissy Strut" feel
+  {1, 0, 0, 0.5, 0, 0.5, 1, 0, 0.5, 0, 0, 0.5, 1, 0, 0.5, 0},
+  -- Tony Allen Afrobeat
+  {1, 0, 0.5, 0.5, 0, 1, 0, 0.5, 0, 0.5, 1, 0, 0.5, 0, 0.5, 0.5},
+  -- David Garibaldi "What Is Hip" linear funk
+  {1, 0, 0, 0.5, 0.5, 0, 1, 0, 0, 0.5, 0, 1, 0, 0.5, 0, 0.5},
+  -- Questlove pocket
+  {1, 0, 0.5, 0, 0, 0.5, 0, 1, 0, 0.5, 0, 0, 1, 0, 0.5, 0},
+  -- Jabo Starks "Super Bad" feel
+  {1, 0.5, 0, 0.5, 0, 0, 1, 0, 0.5, 0, 0.5, 0, 0, 1, 0, 0.5},
+  -- Parliament "Flashlight" feel
+  {1, 0, 0, 0, 0.5, 0, 0.5, 0, 1, 0, 0, 0.5, 0, 0.5, 0, 0},
+  -- Tower of Power displaced pocket
+  {0.5, 0, 1, 0, 0, 0.5, 0, 1, 0.5, 0, 0, 1, 0, 0.5, 0, 0.5},
+}
+
+local function apply_funk_pattern(seq, soul)
+  local pattern = FUNK_PATTERNS[math.random(#FUNK_PATTERNS)]
+  local mel_len = seq.track_len[seq.TRACK_MELODY]
+  local rhy_len = seq.track_len[seq.TRACK_RHYTHM]
+
+  for i = 1, math.min(mel_len, 16) do
+    local p = pattern[i] or 0
+    local step = seq.melody[i]
+    local rstep = seq.rhythm[i]
+
+    if p >= 1 then
+      -- ACCENT: loud, always fire
+      step.on = true
+      step.vel = soul.accent_velocity or 1.0
+      if rstep then
+        rstep.condition = 1   -- ALWAYS
+        rstep.accent = true
+        rstep.ratchet = 1
+      end
+    elseif p >= 0.5 then
+      -- GHOST NOTE: quiet, high probability
+      step.on = true
+      step.vel = (soul.ghost_velocity or 0.25) + math.random() * 0.1
+      if rstep then
+        rstep.condition = math.random() < 0.8 and 1 or 2  -- mostly ALWAYS, sometimes 75%
+        rstep.accent = false
+        rstep.ratchet = 1
+      end
+    else
+      -- REST: sometimes a ghost sneaks in
+      step.on = math.random() < 0.15
+      step.vel = (soul.ghost_velocity or 0.25) * 0.7
+      if rstep then
+        rstep.condition = math.random() < 0.7 and 4 or 10  -- 25% or RANDOM
+        rstep.accent = false
+        rstep.ratchet = 1
+      end
+    end
+  end
+end
+
+local function mutate_funk_step(seq, soul, step_idx)
+  -- funk-aware single step mutation
+  local step = seq.melody[step_idx]
+  local rstep = seq.rhythm[step_idx]
+  if not step or not rstep then return end
+
+  local roll = math.random()
+  if roll < 0.25 then
+    -- flip accent/ghost: the heart of syncopation
+    if step.vel > 0.6 then
+      -- accent becomes ghost
+      step.vel = (soul.ghost_velocity or 0.25) + math.random() * 0.1
+      rstep.accent = false
+    else
+      -- ghost becomes accent
+      step.vel = 0.8 + math.random() * 0.2
+      rstep.accent = true
+    end
+  elseif roll < 0.4 then
+    -- displace: toggle step on/off (creates holes and fills)
+    step.on = not step.on
+  elseif roll < 0.55 then
+    -- swing: add ratchet to ghost notes (double-time ghost = very funky)
+    if step.vel < 0.5 and step.on then
+      rstep.ratchet = 2
+    else
+      rstep.ratchet = 1
+    end
+  elseif roll < 0.7 then
+    -- condition variety on non-accent steps
+    if not rstep.accent then
+      rstep.condition = ({1, 2, 3, 5, 10})[math.random(5)]
+    end
+  elseif roll < 0.85 then
+    -- velocity drift (humanize)
+    if step.vel > 0.6 then
+      step.vel = util.clamp(step.vel + rand_delta(0.08), 0.7, 1.0)
+    else
+      step.vel = util.clamp(step.vel + rand_delta(0.06), 0.15, 0.45)
+    end
+  else
+    -- gate length variation (short = tight, long = lazy)
+    step.gate = math.random() < 0.6 and 0.3 or 0.6
+  end
+end
+
 -- 4. RHYTHM: mutates sequencer rhythm track
 function octopus.act_rhythm(soul)
   local t = octopus.tentacles[T_RHYTHM]
   local seq = octopus.seq
   local len = seq.track_len[seq.TRACK_RHYTHM]
 
+  -- FUNK SOUL: specialized rhythm intelligence
+  if soul.is_funk then
+    -- occasionally lay down a new funk pattern (like a drummer switching grooves)
+    if math.random() < 0.04 * t.energy then
+      apply_funk_pattern(seq, soul)
+      -- set swing
+      local sw = soul.swing_range or {55, 65}
+      seq.swing = math.random(sw[1], sw[2])
+    end
+
+    -- mutate 1-3 individual steps (like a drummer varying the pocket)
+    local num_mutations = math.random(1, math.floor(1 + t.energy * 2))
+    for _ = 1, num_mutations do
+      local i = math.random(1, math.min(len, 16))
+      mutate_funk_step(seq, soul, i)
+    end
+
+    -- THE ONE is SACRED — step 1 is always an accent
+    if seq.melody[1] then
+      seq.melody[1].on = true
+      seq.melody[1].vel = math.max(seq.melody[1].vel, 0.85)
+      if seq.rhythm[1] then
+        seq.rhythm[1].accent = true
+        seq.rhythm[1].condition = 1
+      end
+    end
+
+    -- swing rides with energy
+    local sw = soul.swing_range or {55, 65}
+    seq.swing = util.clamp(seq.swing + rand_delta(1.5), sw[1], sw[2])
+
+    -- fill mode: tasteful fills during PEAK (not destruction)
+    if octopus.form_phase == "PEAK" and t.energy > 0.7 and math.random() < 0.15 then
+      -- fill: add ratchets to last 4 steps
+      for i = math.max(1, len - 3), len do
+        if seq.rhythm[i] then
+          seq.rhythm[i].ratchet = math.random(2, 3)
+        end
+      end
+    end
+
+    return
+  end
+
+  -- NON-FUNK: original behavior
   local i = math.random(1, len)
   local step = seq.rhythm[i]
 
   local roll = math.random()
   if roll < 0.35 then
-    -- condition change
     if math.random() < soul.condition_variety then
       step.condition = math.random(1, 10)
     else
-      step.condition = 1 -- ALWAYS
+      step.condition = 1
     end
   elseif roll < 0.55 then
-    -- ratchet
     if math.random() < soul.ratchet_love * t.energy then
       step.ratchet = math.random(2, 4)
     else
       step.ratchet = 1
     end
   elseif roll < 0.7 then
-    -- accent
     step.accent = not step.accent
   elseif roll < 0.85 then
-    -- density: toggle melody steps
     local mi = math.random(1, seq.track_len[seq.TRACK_MELODY])
     seq.melody[mi].on = not seq.melody[mi].on
   else
-    -- polymetric: shift rhythm track length
     if octopus.form_phase == "PEAK" or octopus.form_phase == "BUILD" then
       seq.track_len[seq.TRACK_RHYTHM] = math.random(5, 13)
     end
   end
 
-  -- fill mode during PEAK
   seq.fill_mode = (octopus.form_phase == "PEAK" and t.energy > 0.6)
 end
 
@@ -800,7 +1054,76 @@ function octopus.act_melody(soul)
   local seq = octopus.seq
   local len = seq.track_len[seq.TRACK_MELODY]
 
-  -- mutate 1-2 steps
+  -- FUNK: tight pentatonic riffs, chromatic approaches, octave locks
+  if soul.is_funk then
+    local root = octopus.melody_root
+    -- funk stays within one octave of the root
+    local funk_range_lo = root - 5
+    local funk_range_hi = root + 12
+
+    -- mutate 1-2 steps with funk logic
+    local num = math.random(1, 2)
+    for _ = 1, num do
+      local i = math.random(1, len)
+      local step = seq.melody[i]
+
+      local roll = math.random()
+      if roll < 0.3 then
+        -- pentatonic snap: minor pentatonic from root
+        local penta = {0, 3, 5, 7, 10}
+        local degree = penta[math.random(#penta)]
+        local octave = math.random(0, 1)
+        step.note = util.clamp(root + degree + octave * 12, funk_range_lo, funk_range_hi)
+      elseif roll < 0.5 then
+        -- chromatic approach: half step below a scale tone
+        step.note = seq.markov_next(step.note)
+        -- clamp to funk range
+        step.note = util.clamp(step.note, funk_range_lo, funk_range_hi)
+      elseif roll < 0.7 then
+        -- repeat root or fifth (the ANCHOR — funk sits on the root)
+        local anchors = {root, root, root + 7, root - 5, root + 12}
+        step.note = anchors[math.random(#anchors)]
+      else
+        -- motivic: reuse from memory
+        if #octopus.melody_memory > 2 then
+          local mem = octopus.melody_memory[math.random(#octopus.melody_memory)]
+          step.note = util.clamp(mem, funk_range_lo, funk_range_hi)
+        end
+      end
+
+      table.insert(octopus.melody_memory, step.note)
+      if #octopus.melody_memory > 8 then table.remove(octopus.melody_memory, 1) end
+    end
+
+    -- note injection: funky stabs and fills
+    local inject_rate = soul.melody_inject_rate * (0.4 + t.energy * 0.6)
+    if math.random() < inject_rate then
+      -- funk note: root, fifth, or octave
+      local funk_notes = {root, root + 7, root + 12, root + 5, root - 5, root + 3, root + 10}
+      local note = funk_notes[math.random(#funk_notes)]
+      octopus.melody_last_note = note
+      -- short, punchy gate (funk = tight)
+      local vel = 0.5 + t.energy * 0.4
+      local gate = 0.08 + math.random() * 0.2
+      if octopus.note_on_fn then
+        octopus.note_on_fn(note, vel, gate)
+      end
+      -- occasional octave double (very funky)
+      if math.random() < t.energy * 0.25 then
+        clock.run(function()
+          clock.sleep(math.random() * 0.02)
+          if octopus.note_on_fn then
+            octopus.note_on_fn(note + 12, vel * 0.6, gate * 0.7)
+          end
+        end)
+      end
+    end
+
+    seq.generative = (octopus.form_phase == "PEAK")
+    return
+  end
+
+  -- NON-FUNK: original behavior
   local num = math.random(1, 2)
   for _ = 1, num do
     local i = math.random(1, len)
@@ -1004,8 +1327,13 @@ function octopus.act_form(soul)
     octopus.form_idx = octopus.form_idx + 1
 
     if octopus.form_idx > #octopus.form_template then
-      -- new form template
-      octopus.form_template = FORM_TEMPLATES[math.random(#FORM_TEMPLATES)]
+      -- new form template (funk gets funk templates)
+      local soul = octopus.get_soul()
+      if soul.is_funk then
+        octopus.form_template = FUNK_FORM_TEMPLATES[math.random(#FUNK_FORM_TEMPLATES)]
+      else
+        octopus.form_template = FORM_TEMPLATES[math.random(#FORM_TEMPLATES)]
+      end
       octopus.form_idx = 1
       octopus.cycle = octopus.cycle + 1
 
